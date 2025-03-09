@@ -1,58 +1,156 @@
+import numpy as np
 import torch
 import torch.nn as nn
-
 from flamo.functional import (
     get_magnitude,
     get_eigenvalues
 )
 
-class MSE_evs(nn.Module):
-    """
-    Mean Squared Error (MSE) loss function for eigenvalues.
-    To reduce computational complexity, the loss is computed only on a subset of the eigenvalues at each iteration of an epoch.
-    """
-    def __init__(self, ds_size, freq_points):
-        """
-        Initialize the MSE loss function for eigenvalues.
+class evs_mse(nn.Module):
+    def __init__(self, iter_num: int, freq_points: int, samplerate: int):
+        r"""
+        Mean Squared Error (MSE) loss function for Active Acoustics.
+        To reduce computational complexity (i.e. the number of eigendecompositions computed),
+        the loss is applied only on a subset of the frequecy points at each iteration of an epoch.
+        The subset is selected randomly ensuring that all frequency points are considered once and only once.
 
-        Args:
-            ds_size (_type_): _description_
-            freq_points (_type_): _description_
+            **Args**:
+                - iter_num (int): Number of iterations per epoch.
+                - freq_points (int): Number of frequency points.
         """
         super().__init__()
-        # The number of intervals matches the dataset size
-        self.interval_idxs = torch.randperm(ds_size)
-        # The number of eigenvalues common to two adjacent intervals
-        self.overlap = torch.tensor(500, dtype=torch.int)
-        # The number of eigenvalues per interval
-        int_width = torch.max(torch.tensor([freq_points//ds_size, 2400], dtype=torch.int))
-        self.evs_numb = torch.tensor(int_width + self.overlap, dtype=torch.int)
-        assert self.evs_numb < freq_points, "The number of eigenvalues per interval is too large."
-        # Auxiliary variable to go through the intervals
+
+        self.freq_points = freq_points
+        self.max_index = self.freq_points
+
+        self.iter_num = iter_num
+        self.idxs = torch.randperm(self.freq_points)
+        self.evs_per_iteration = torch.ceil(torch.tensor(self.freq_points / self.iter_num, dtype=torch.float))
         self.interval_count = 0
 
     def forward(self, y_pred, y_true):
-        # Get the indexes of the current interval
-        idx1, idx2 = self.__get_indexes()
+        r"""
+        Compute the MSE loss function.
+            
+            **Args**:
+                - y_pred (torch.Tensor): Predicted eigenvalues.
+                - y_true (torch.Tensor): True eigenvalues.
+
+            **Returns**:
+                torch.Tensor: Mean Squared Error.
+        """
+        # Get the indexes of the frequency-point subset
+        idxs = self.__get_indexes(max_index=self.max_index)
         # Get the eigenvalues
-        evs_pred = get_magnitude(get_eigenvalues(y_pred[:,idx1:idx2,:,:]))
-        evs_true = y_true[:,idx1:idx2,:]
-        # Compute the loss
-        MSE = torch.mean(torch.square(evs_pred - evs_true))
-        return MSE
+        evs_pred = get_magnitude(get_eigenvalues(y_pred[:,idxs,:,:]))
+        evs_true = y_true[:,idxs,:]
+        mse = torch.mean(torch.square(torch.abs(evs_pred - evs_true)))
+        return mse
 
-    def __get_indexes(self):
-        # Don't exceed the size of the tensors
-        max_index = self.evs_numb * len(self.int_idx)
-        min_index = 0
+    def __get_indexes(self, max_index: int=None):
+        r"""
+        Get the indexes of the frequency-point subset.
+
+            **Returns**:
+                torch.Tensor: Indexes of the frequency-point subset.
+        """
         # Compute indeces
-        idx1 = torch.max(torch.tensor( [min_index, self.int_idx[self.i]*self.evs_numb - self.overlap], dtype=torch.int))
-        idx2 = torch.min(torch.tensor( [(self.int_idx[self.i]+1)*self.evs_numb - self.overlap, max_index], dtype=torch.int))
+        idx1 = np.min([int(self.interval_count*self.evs_per_iteration), max_index-1])
+        idx2 = np.min([int((self.interval_count+1) * self.evs_per_iteration), max_index])
+        idxs = self.idxs[torch.arange(idx1, idx2, dtype=torch.int)]
         # Update interval counter
-        self.i = (self.i+1) % len(self.int_idx)
-        return idx1, idx2
-    
+        self.interval_count = (self.interval_count+1) % (self.iter_num)
+        return idxs
 
+class bandlimited_evs_mse(evs_mse):
+    def __init__(self, iter_num: int, freq_points: int, samplerate: int, lowest_f: float, highest_f: float):
+        r"""
+        Mean Squared Error (MSE) loss function for Active Acoustics.
+        To reduce computational complexity (i.e. the number of eigendecompositions computed),
+        the loss is applied only on a subset of the frequecy points at each iteration of an epoch.
+        The subset is selected randomly ensuring that all frequency points are considered once and only once.
+
+            **Args**:
+                - iter_num (int): Number of iterations per epoch.
+                - freq_points (int): Number of frequency points.
+        """
+        super().__init__(iter_num=iter_num, freq_points=freq_points, samplerate=samplerate)
+
+        assert(lowest_f >= 0)
+        self.nyquist = samplerate//2
+        assert(highest_f <= self.nyquist)
+
+        self.min_freq_point = int(lowest_f/self.nyquist * freq_points)
+        self.max_freq_point = int(highest_f/self.nyquist * freq_points)
+        self.freq_points = self.max_freq_point - self.min_freq_point
+        self.max_index = self.freq_points
+
+        self.iter_num = iter_num
+        self.idxs = torch.randperm(self.freq_points) + self.min_freq_point
+        self.evs_per_iteration = torch.ceil(torch.tensor(self.freq_points / self.iter_num, dtype=torch.float))
+        self.interval_count = 0
+
+    def forward(self, y_pred, y_true):
+        r"""
+        Compute the MSE loss function.
+            
+            **Args**:
+                - y_pred (torch.Tensor): Predicted eigenvalues.
+                - y_true (torch.Tensor): True eigenvalues.
+
+            **Returns**:
+                torch.Tensor: Mean Squared Error.
+        """
+        # Get the indexes of the frequency-point subset
+        idxs = self.__get_indexes(max_index=self.max_freq_point)
+        # Get the eigenvalues
+        evs_pred = get_magnitude(get_eigenvalues(y_pred[:,idxs,:,:]))
+        evs_true = y_true[:,idxs,:]
+        mse = torch.mean(torch.square(torch.abs(evs_pred - evs_true)))
+        return mse
+    
+class weighted_bandlimited_evs_mse(bandlimited_evs_mse):
+    def __init__(self, iter_num: int, freq_points: int, samplerate: int, lowest_f: float, crossover_freq: float, highest_f: float):
+        r"""
+        Mean Squared Error (MSE) loss function for Active Acoustics.
+        To reduce computational complexity (i.e. the number of eigendecompositions computed),
+        the loss is applied only on a subset of the frequecy points at each iteration of an epoch.
+        The subset is selected randomly ensuring that all frequency points are considered once and only once.
+
+            **Args**:
+                - iter_num (int): Number of iterations per epoch.
+                - freq_points (int): Number of frequency points.
+        """
+        super().__init__(self, iter_num=iter_num, freq_points=freq_points, samplerate=samplerate, lowest_f=lowest_f, highest_f=highest_f)
+        crossover_point = int(crossover_freq/self.nyquist * freq_points)
+        ratio = (self.max_freq_point - self.min_freq_point) / (crossover_point - self.min_freq_point)
+        self.weights = ( torch.sigmoid(torch.linspace(7, -7*ratio, self.freq_points+self.min_freq_point)) * 4 ) + 1
+
+    def forward(self, y_pred, y_true):
+        r"""
+        Compute the MSE loss function.
+            
+            **Args**:
+                - y_pred (torch.Tensor): Predicted eigenvalues.
+                - y_true (torch.Tensor): True eigenvalues.
+
+            **Returns**:
+                torch.Tensor: Mean Squared Error.
+        """
+        # Get the indexes of the frequency-point subset
+        idxs = self.__get_indexes()
+        # Get the eigenvalues
+        evs_pred = get_magnitude(get_eigenvalues(y_pred[:,idxs,:,:]))
+        evs_true = y_true[:,idxs,:]
+        difference = evs_pred - evs_true
+        if evs_pred.shape[2] > 4:
+            mask = difference > 0.0
+            difference[mask] = difference[mask] * 3
+        weights = self.weights[idxs].unsqueeze(0).unsqueeze(-1).repeat(1,1,evs_true.shape[-1])
+        mse = torch.mean(torch.square(torch.abs(difference) * weights))
+        return mse
+    
+    
 class minimize_evs_mod(nn.Module):
     def __init__(self, iter_num: int, idxs: torch.Tensor):
         r"""
@@ -86,7 +184,7 @@ class minimize_evs_mod(nn.Module):
         mse = torch.mean(torch.square(evs_pred))
         return mse
     
-class preserve_reverb_energy_mod(nn.Module):
+class preserve_energy(nn.Module):
     def __init__(self, idxs):
         super().__init__()
         self.idxs = idxs
