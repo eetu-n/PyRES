@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from flamo import dsp
 from flamo.utils import to_complex
-from .functional import modal_reverb, wgn_reverb
+from functional import modal_reverb, wgn_reverb
 
 class unitary_connections(dsp.Matrix):
     pass
@@ -19,10 +19,11 @@ class random_FIRs(dsp.Filter):
             n_M: int=1,
             n_L: int=1,
             nfft: int=2**11,
-            FIR_order: int=100
+            FIR_order: int=100,
+            alias_decay_db: float=0.0
         ) -> None:
         
-        super.__init__(self, size=(FIR_order, n_L, n_M), nfft=nfft, requires_grad=True)
+        super().__init__(size=(FIR_order, n_L, n_M), nfft=nfft, requires_grad=True, alias_decay_db=alias_decay_db)
 
 
 class phase_canceling_modal_reverb(dsp.Filter):

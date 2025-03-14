@@ -1,5 +1,5 @@
 import torch
-from flamo.functional import db2mag, sosfreqz, bandpass_filter
+from flamo.functional import db2mag
 
 
 def resonance_filter(
@@ -71,53 +71,5 @@ def modal_reverb(
     A = torch.fft.rfft(a_aa, nfft, dim=0)
     
     return torch.div(B, A).sum(dim=-1)
-        
 
-def wgn_reverb(
-        matrix_size: tuple = (1, 1), t60: float = 1.0, samplerate: int = 48000, device=None
-    ) -> torch.Tensor:
-    r"""
-    Generates White-Gaussian-Noise-reverb impulse responses.
 
-        **Arguments**:
-            - **matrix_size** (tuple, optional): (output_channels, input_channels). Defaults to (1,1).
-            - **t60** (float, optional): Reverberation time. Defaults to 1.0.
-            - **samplerate** (int, optional): Sampling frequency. Defaults to 48000.
-            - **nfft** (int, optional): Number of frequency bins. Defaults to 2**11.
-
-        **Returns**:
-            torch.Tensor: Matrix of WGN-reverb impulse responses.
-    """
-    # Number of samples
-    n_samples = int(1.5 * t60 * samplerate)
-    # White Guassian Noise
-    noise = torch.randn(n_samples, *matrix_size, device=device)
-    # Decay
-    dr = t60 / torch.log(torch.tensor(1000, dtype=torch.float32, device=device))
-    decay = torch.exp(-1 / dr * torch.linspace(0, t60, n_samples))
-    decay = decay.view(-1, *(1,) * (len(matrix_size))).expand(-1, *matrix_size)
-    # Decaying WGN
-    IRs = torch.mul(noise, decay)
-    # Go to frequency domain
-    TFs = torch.fft.rfft(input=IRs, n=n_samples, dim=0)
-
-    # Generate bandpass filter
-    fc_left = torch.tensor([20], dtype=torch.float32, device=device)
-    fc_right = torch.tensor([20000], dtype=torch.float32, device=device)
-    g = torch.tensor([1], dtype=torch.float32, device=device)
-    b, a = bandpass_filter(
-        fc1=fc_left, fc2=fc_right, gain=g, fs=samplerate, device=device
-    )
-    sos = torch.cat((b.reshape(1, 3), a.reshape(1, 3)), dim=1)
-    bp_H = sosfreqz(sos=sos, nfft=n_samples).squeeze()
-    bp_H = bp_H.view(*bp_H.shape, *(1,) * (len(TFs.shape) - 1)).expand(*TFs.shape)
-
-    # Apply bandpass filter
-    TFs = torch.mul(TFs, bp_H)
-
-    # Return to time domain
-    IRs = torch.fft.irfft(input=TFs, n=n_samples, dim=0)
-
-    # Normalize
-    vec_norms = torch.linalg.vector_norm(IRs, ord=2, dim=(0))
-    return IRs / vec_norms

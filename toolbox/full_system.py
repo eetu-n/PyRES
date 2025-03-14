@@ -8,7 +8,7 @@ from flamo.functional import (
     get_eigenvalues,
 )
 
-from .physical_room import PhRoom
+from physical_room import PhRoom
 
 
 # TEMPLATE CLASS DEFINITION
@@ -24,8 +24,8 @@ class AAES(nn.Module):
             n_A: int=1,
             fs: int=48000,
             nfft: int=2**11,
-            ph_room: PhRoom=None,
-            vi_room: nn.Module=None,
+            physical_room: PhRoom=None,
+            virtual_room: nn.Module=None,
             alias_decay_db: float=0
         ):
         """
@@ -42,18 +42,23 @@ class AAES(nn.Module):
             V_ML (nn.Module, optional): virtual room dsp. Defaults to None.
             alias_decay_db (float, optional): anti-time-aliasing decay in dB. Defaults to 0.
         """
-        nn.Module.__init__(self)
+        super().__init__()
 
         # Processing resolution
         self.fs = fs
         self.nfft = nfft
 
         # Physical room
-        self.__H = ph_room
+        self.n_S = n_S
+        self.n_M = n_M
+        self.n_L = n_L
+        self.n_A = n_A
+        
+        self.__H = physical_room
         self.H_SM = dsp.Filter(size=(self.__H.rir_length, n_M, n_S), nfft=self.nfft, requires_grad=False, alias_decay_db=alias_decay_db)
-        self.H_SM.assign_value(self.__H.get_scs_to_mcs())
+        self.H_SM.assign_value(self.__H.get_stg_to_mcs())
         self.H_SA = dsp.Filter(size=(self.__H.rir_length, n_A, n_S), nfft=self.nfft, requires_grad=False, alias_decay_db=alias_decay_db)
-        self.H_SA.assign_value(self.__H.get_scs_to_aud())
+        self.H_SA.assign_value(self.__H.get_stg_to_aud())
         self.H_LM = dsp.Filter(size=(self.__H.rir_length, n_M, n_L), nfft=self.nfft, requires_grad=False, alias_decay_db=alias_decay_db)
         self.H_LM.assign_value(self.__H.get_lds_to_mcs())
         self.H_LA = dsp.Filter(size=(self.__H.rir_length, n_A, n_L), nfft=self.nfft, requires_grad=False, alias_decay_db=alias_decay_db)
@@ -62,9 +67,9 @@ class AAES(nn.Module):
         # Virtual room
         self.G = dsp.parallelGain(size=(n_L,), nfft=self.nfft, alias_decay_db=alias_decay_db)
         self.G.assign_value(torch.ones(n_L))
-        if vi_room is None:
-            vi_room = dsp.Matrix(size=(n_L, n_M), nfft=self.nfft, matrix_type="random", requires_grad=False, alias_decay_db=alias_decay_db)
-        self.V_ML = OrderedDict([('Virtual_Room', vi_room)])
+        if virtual_room is None:
+            virtual_room = dsp.Matrix(size=(n_L, n_M), nfft=self.nfft, matrix_type="random", requires_grad=False, alias_decay_db=alias_decay_db)
+        self.V_ML = virtual_room
 
         # Open Loop
         self.F_MM = system.Shell(
@@ -115,7 +120,7 @@ class AAES(nn.Module):
         assert isinstance(g, torch.FloatTensor), "G must be a float."
         self.G.assign_value(g*torch.ones(self.n_L))
 
-    def get_GBI(self) -> torch.Tensor:
+    def compute_GBI(self) -> torch.Tensor:
         r"""
         Return the Gain Before Instability (GBI) value in linear scale.
 
@@ -123,13 +128,13 @@ class AAES(nn.Module):
                 torch.Tensor: GBI value (linear scale).
         """
         # Save current G value
-        g_current = self.G.param.data[0].clone()
+        g_current = self.get_G().param.data[0].clone()
 
         # Set G to 1
-        self.set_G(1)
+        self.set_G(torch.tensor(1.00))
 
         # Compute the gain before instability
-        maximum_eigenvalue = torch.max(get_magnitude(self.get_open_loop_eigenvalues()))
+        maximum_eigenvalue = torch.max(get_magnitude(self.open_loop_eigenvalues()))
         gbi = torch.reciprocal(maximum_eigenvalue)
 
         # Restore G value
@@ -142,7 +147,7 @@ class AAES(nn.Module):
         Set the system general gain to match the current system GBI in linear scale.
         """
         # Compute the current gain before instability
-        gbi = self.get_GBI()
+        gbi = self.compute_GBI()
 
         # Apply the current gain before instability to the system general gain module
         self.set_G(gbi)
@@ -174,14 +179,15 @@ class AAES(nn.Module):
             **Returns**:
                 nn.Sequential: Series implementing one open-loop iteration.
         """
-        loop = system.Series()
-        loop.append(v_ml)
-        loop.append(g)
-        loop.append(h_lm)
-        
-        return loop
+        modules = OrderedDict([
+            ('V_ML', v_ml),
+            ('G', g),
+            ('H_LM', h_lm)
+        ])
 
-    def get_open_loop_eigenvalues(self) -> torch.Tensor:
+        return nn.Sequential(OrderedDict(modules))
+
+    def open_loop_eigenvalues(self) -> torch.Tensor:
         r"""
         Compute the eigenvalues of the open-loop matrix.
 
@@ -205,16 +211,15 @@ class AAES(nn.Module):
         Returns:
             tuple[Shell, Shell]: Natural and Electroacoustic paths as Shell objects.
         """
-        # Build digital signal processor
-        processor = system.Series()
-        processor.append(self.get_V_ML())
-        processor.add_module('G', self.get_G())
         # Build closed feedback loop
-        feedback_loop = system.Recursion(fF=processor, fB=self.H_LM)
+        closed_loop = system.Recursion(
+            fF=system.Series(self.get_V_ML(), self.get_G()),
+            fB=self.H_LM
+        )
         # Build the electroacoustic path
-        ea_components = nn.Sequential(OrderedDict([
+        ea_components = system.Series(OrderedDict([
             ('H_SM', self.H_SM),
-            ('FeedbackLoop', feedback_loop),
+            ('FeedbackLoop', closed_loop),
             ('H_LA', self.H_LA)
         ]))
         ea_path = system.Shell(core=ea_components, input_layer=dsp.FFT(self.nfft), output_layer=dsp.iFFT(self.nfft))

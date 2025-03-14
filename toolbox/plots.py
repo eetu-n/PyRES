@@ -3,7 +3,45 @@ from matplotlib import mlab
 import seaborn as sns
 import numpy as np
 import torch
-from flamo.functional import mag2db
+from flamo.functional import mag2db, get_magnitude
+
+# PLOTS THAT I WANT TO HAVE:
+# Physical room:
+# - Mean squared RIR wiht variance over time for given RIRs.
+# - Mean magnitude RTF with variance over frequency for given RTFs.
+# Virtual room:
+# - Use Shell methods to get RIRs and RTFs and plot them.
+# Eigenvalues:
+# - Eigenvalue magnitude distribution.
+# - Peak-to-mean over frequency -> coloration coefficient.
+# Auralization:
+# - IR spectrogram.
+
+
+def plot_coupling(rirs):
+    norm_val = torch.norm(rirs, 'fro')
+
+    rms = torch.sum(torch.pow(rirs, 2), dim=(0))/rirs.shape[0]
+    plt.figure()
+    image = plt.imshow(rms)
+    plt.ylabel('Microphone')
+    plt.yticks(np.arange(0, rirs.shape[1]), labels=np.arange(1,rirs.shape[1]+1))
+    plt.xlabel('Loudspeaker')
+    plt.xticks(np.arange(0, rirs.shape[2]), labels=np.arange(1,rirs.shape[2]+1))
+    plt.colorbar(mappable=image)
+
+    # new_rirs = rirs/rms
+    # new_rirs = new_rirs/torch.norm(new_rirs, 'fro') * norm_val
+    # rms = torch.sqrt(torch.sum(torch.pow(new_rirs, 2), dim=(0))/rirs.shape[0])
+    # plt.figure()
+    # image = plt.imshow(rms)
+    # plt.ylabel('Microphone')
+    # plt.yticks(np.arange(0, rirs.shape[1]), labels=np.arange(1,rirs.shape[1]+1))
+    # plt.xlabel('Loudspeaker')
+    # plt.xticks(np.arange(0, rirs.shape[2]), labels=np.arange(1,rirs.shape[2]+1))
+    # plt.colorbar(mappable=image)
+    plt.show(block=True)
+
 
 
 def plot_evs_distributions(evs_1: torch.Tensor, evs_2: torch.Tensor, fs: int, nfft: int, lower_f_lim: float, higher_f_lim: float, label1: str='Initialized', label2: str='Optimized') -> None:
@@ -19,11 +57,9 @@ def plot_evs_distributions(evs_1: torch.Tensor, evs_2: torch.Tensor, fs: int, nf
             label2 (str, optional): Label for the second set of eigenvalues. Defaults to 'Optimized'.
     """
 
-    # TODO: receive complex eigenvalues, apply get_magnitude
-
     idx1 = int(nfft/fs * lower_f_lim)
     idx2 = int(nfft/fs * higher_f_lim)
-    evs = mag2db(torch.cat((evs_1.unsqueeze(-1), evs_2.unsqueeze(-1)), dim=len(evs_1.shape))[idx1:idx2,:,:])
+    evs = mag2db(get_magnitude(torch.cat((evs_1.unsqueeze(-1), evs_2.unsqueeze(-1)), dim=len(evs_1.shape))[idx1:idx2,:,:]))
     plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
     plt.figure(figsize=(7,6))
     ax = plt.subplot(1,1,1)
@@ -63,7 +99,7 @@ def plot_evs(evs, *kwargs):
 
         plt.show()
 
-def plot_spectrograms(y_1: torch.Tensor, y_2: torch.Tensor, fs: int, nfft: int=2**10, label1='Initialized', label2='Optimized', title='System Impulse Response Spectrograms') -> None:
+def plot_spectrograms(y_1: torch.Tensor, y_2: torch.Tensor, fs: int, nfft: int=2**10, noverlap: int=2**8, label1='Initialized', label2='Optimized', title='System Impulse Response Spectrograms') -> None:
     r"""
     Plot the spectrograms of the system impulse responses at initialization and after optimization.
     
@@ -76,8 +112,8 @@ def plot_spectrograms(y_1: torch.Tensor, y_2: torch.Tensor, fs: int, nfft: int=2
             - label2 (str, optional): Label for the second signal. Defaults to 'Optimized'.
             - title (str, optional): Title of the plot. Defaults to 'System Impulse Response Spectrograms'.
     """
-    Spec_init,f,t = mlab.specgram(y_1.detach().squeeze().numpy(), NFFT=nfft, Fs=fs, noverlap=nfft//8)
-    Spec_opt,_,_ = mlab.specgram(y_2.detach().squeeze().numpy(), NFFT=nfft, Fs=fs, noverlap=nfft//8)
+    Spec_init,f,t = mlab.specgram(y_1.detach().squeeze().numpy(), NFFT=nfft, Fs=fs, noverlap=noverlap)
+    Spec_opt,_,_ = mlab.specgram(y_2.detach().squeeze().numpy(), NFFT=nfft, Fs=fs, noverlap=noverlap)
 
     max_val = max(Spec_init.max(), Spec_opt.max())
     Spec_init = Spec_init/max_val
@@ -109,29 +145,69 @@ def plot_spectrograms(y_1: torch.Tensor, y_2: torch.Tensor, fs: int, nfft: int=2
     cbar.ax.set_ylim(-100, 0)
     cbar.ax.set_yticks(ticks, ['-100','-80','-60','-40','-20','0'])
 
-def plot_coupling(rirs):
-    norm_val = torch.norm(rirs, 'fro')
+def plot_ptmr(evs, fs, nfft):
+    
+    f_axis = torch.linspace(0, fs//2, nfft//2+1)
+    evs_peak = torch.max(torch.abs(evs), dim=1)[0]
+    evs_mean = torch.mean(torch.abs(evs), dim=1)
+    evs_ptmr = evs_peak/evs_mean
 
-    rms = torch.sqrt(torch.sum(torch.pow(rirs, 2), dim=(0))/rirs.shape[0])
     plt.figure()
-    image = plt.imshow(rms)
-    plt.ylabel('Microphone')
-    plt.yticks(np.arange(0, rirs.shape[1]), labels=np.arange(1,rirs.shape[1]+1))
-    plt.xlabel('Loudspeaker')
-    plt.xticks(np.arange(0, rirs.shape[2]), labels=np.arange(1,rirs.shape[2]+1))
-    plt.colorbar(mappable=image)
-
-    # new_rirs = rirs/rms
-    # new_rirs = new_rirs/torch.norm(new_rirs, 'fro') * norm_val
-    # rms = torch.sqrt(torch.sum(torch.pow(new_rirs, 2), dim=(0))/rirs.shape[0])
-    # plt.figure()
-    # image = plt.imshow(rms)
-    # plt.ylabel('Microphone')
-    # plt.yticks(np.arange(0, rirs.shape[1]), labels=np.arange(1,rirs.shape[1]+1))
-    # plt.xlabel('Loudspeaker')
-    # plt.xticks(np.arange(0, rirs.shape[2]), labels=np.arange(1,rirs.shape[2]+1))
-    # plt.colorbar(mappable=image)
+    plt.plot(f_axis, mag2db(evs_peak))
+    plt.plot(f_axis, mag2db(evs_mean))
+    plt.plot(f_axis, mag2db(evs_ptmr))
+    plt.xlabel('Frequency in Hz')
+    plt.ylabel('Magnitude in dB')
+    plt.ylim(-50,10)
+    plt.xlim(20,20000)
+    plt.xscale('log')
+    plt.grid()
+    plt.legend(['Peak value', 'Mean value', 'Peak-to-mean ratio'])
+    # plt.ylim(-20,30)
+    # plt.xlim(20,20000)
+    # plt.xscale('log')
+    # plt.grid()
+    plt.tight_layout()
     plt.show(block=True)
+
+def plot_line(rirs, fs, nfft):
+    import pandas
+
+    rtfs = torch.fft.rfft(rirs, nfft, dim=0)
+    data = (pandas.DataFrame(data = mag2db(torch.abs(rtfs.view(rtfs.shape[0]*rtfs.shape[1]*rtfs.shape[2]))).numpy()))
+    f_axis = torch.linspace(0, fs//2, nfft//2+1)
+    sns.relplot(data=data, kind='line')
+    plt.xlabel('Frequency in Hz')
+    plt.ylabel('Magnitude in dB')
+    # plt.ylim(-50,0)
+    # plt.xlim(20,20000)
+    plt.xscale('log')
+    plt.grid()
+    plt.tight_layout()
+    plt.show(block=True)
+
+def plot_I_want(rirs,fs,nfft):
+
+    # rtfs = torch.fft.rfft(rirs, nfft, dim=0).view(nfft//2+1, -1)
+    f_axis = torch.linspace(0, fs//2, nfft//2+1)
+    # y = mag2db(torch.abs(rtfs))
+    y = torch.square(rirs.view(rirs.shape[0],-1))
+    t_axis = torch.linspace(0, rirs.shape[0]/fs, rirs.shape[0])
+    y1 = torch.max(y, dim=1)[0]
+    y2 = torch.min(y, dim=1)[0]
+
+    plt.figure()
+    plt.fill_between(t_axis, y1, y2, color='tab:blue', alpha=0.5)
+    plt.xlabel('Time in seconds')
+    plt.ylabel('Amplitude in dB')
+    # plt.xlim(20,20000)
+    # plt.ylim(-60,0)
+    # plt.xscale('log')
+    plt.yscale('log')
+    plt.grid()
+    plt.tight_layout()
+    plt.show(block=True)
+
 
 def plot_stuff(samplerate, nfft, rtfs, fl_rtfs, evs):
 
