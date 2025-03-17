@@ -40,10 +40,13 @@ def system_equalization_curve(
             # Right target: moving average of RTFs values
             smooth_window_length = right_interval.shape[0]//6
             smooth_evs = torch.tensor(np.convolve(mean_evs[right_interval], np.ones(smooth_window_length)/smooth_window_length, mode='valid'))
-            pre = torch.ones(smooth_window_length//2, 1) * smooth_evs[0]
-            post = torch.ones(smooth_window_length//2, 1) * smooth_evs[-1]
+            pre = torch.ones(smooth_window_length//2,) * smooth_evs[0]
+            post = torch.ones(smooth_window_length//2,) * smooth_evs[-1]
             target_right = torch.cat((pre, smooth_evs, post), dim=0)
 
+            # Create continuity between left and right
+            target_right = target_right * (target_left[-1] / target_right[0])
+            
             # Concatenate left and right targets
             target = torch.cat((target_left, target_right), dim=0)
         else:

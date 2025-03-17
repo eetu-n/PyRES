@@ -22,15 +22,16 @@ def limit_frequency_points(array: torch.Tensor, fs: int, nfft: int, f_interval: 
         **Returns**:
             torch.Tensor: reduced array.
     """
-    # TODO: generalize to input array of any shape
+    
     if f_interval is not None:
         freqs = torch.linspace(0, fs/2, nfft//2+1)
-        index_interval = torch.argmin(torch.abs(freqs - torch.tensor(f_interval)))
-        return array[index_interval[0]:index_interval[1]+1,:,:]
+        index_1 = torch.argmin(torch.abs(freqs - torch.tensor(f_interval[0])))
+        index_2 = torch.argmin(torch.abs(freqs - torch.tensor(f_interval[1])))
+        return array[index_1:index_2+1]
     elif f_subset is not None:
         freqs = torch.linspace(0, fs/2, nfft//2+1)
         index_subset = torch.argmin(torch.abs(freqs - f_subset.unsqueeze(0)), dim=1)
-        return array[index_subset,:,:]
+        return array[index_subset]
     else:
         return array
 

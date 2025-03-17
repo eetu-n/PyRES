@@ -53,7 +53,7 @@ class AAES(nn.Module):
         self.n_M = n_M
         self.n_L = n_L
         self.n_A = n_A
-        
+
         self.__H = physical_room
         self.H_SM = dsp.Filter(size=(self.__H.rir_length, n_M, n_S), nfft=self.nfft, requires_grad=False, alias_decay_db=alias_decay_db)
         self.H_SM.assign_value(self.__H.get_stg_to_mcs())
@@ -65,18 +65,16 @@ class AAES(nn.Module):
         self.H_LA.assign_value(self.__H.get_lds_to_aud())
 
         # Virtual room
-        self.G = dsp.parallelGain(size=(n_L,), nfft=self.nfft, alias_decay_db=alias_decay_db)
-        self.G.assign_value(torch.ones(n_L))
         if virtual_room is None:
             virtual_room = dsp.Matrix(size=(n_L, n_M), nfft=self.nfft, matrix_type="random", requires_grad=False, alias_decay_db=alias_decay_db)
         self.V_ML = virtual_room
 
-        # Open Loop
-        self.F_MM = system.Shell(
-            core=self.__open_loop(self.get_V_ML(), self.get_G(), self.H_LM),
-            input_layer=nn.Sequential(dsp.Transform(lambda x: x.diag_embed()), dsp.FFT(self.nfft))
-            )
+        # System gain
+        self.G = dsp.parallelGain(size=(n_L,), nfft=self.nfft, alias_decay_db=alias_decay_db)
         self.set_G_to_GBI()
+
+        # Optimization
+        self.opt = system.Shell(core=self.__open_loop(self.get_V_ML(), self.get_G(), self.H_LM))
 
     # ==================================================================================
     # ================================== FORWARD PATH ==================================
@@ -96,7 +94,7 @@ class AAES(nn.Module):
                 If x is a diagonal matrix of unit impulses of size (_, n_M, n_M), the output is a matrix of size (_, n_M, n_M) representing the feedback loop matrix.
                 The first dimension of vectors and matrices depends on input_layer and output_layer of the Shell instance self.F_MM.
         """
-        return self.F_MM(x)
+        return self.opt(x)
     
     # ==================================================================================
     # ============================== SYSTEM GAIN METHODS ===============================
@@ -185,7 +183,7 @@ class AAES(nn.Module):
             ('H_LM', h_lm)
         ])
 
-        return nn.Sequential(OrderedDict(modules))
+        return system.Series(modules)
 
     def open_loop_eigenvalues(self) -> torch.Tensor:
         r"""
@@ -196,10 +194,72 @@ class AAES(nn.Module):
         """
         with torch.no_grad():
 
+            fr_matrix = self.open_loop_matrix()
+
             # Compute eigenvalues
-            evs = get_eigenvalues(self.F_MM.get_freq_response(fs=self.fs, identity=True))
+            evs = get_eigenvalues(fr_matrix)
 
         return evs
+    
+    def open_loop_matrix(self) -> torch.Tensor:
+        r"""
+        Compute the frequency response matrix of the open-loop matrix.
+
+            **Returns**:
+                torch.Tensor: frequency response matrix.
+        """
+        with torch.no_grad():
+
+            # Generate open loop
+            open_loop = self.__open_loop(self.get_V_ML(), self.get_G(), self.H_LM)
+
+            # Get open-loop frequency response matrix
+            open_loop = system.Shell(
+                core=open_loop
+            )
+            fr_matrix = open_loop.get_freq_response(fs=self.fs, identity=True)
+
+        return fr_matrix
+    
+    # ==================================================================================
+    # ================================= OPTIMIZATION ===================================
+
+    def get_state(self) -> dict:
+        r"""
+        Return the current state of the model.
+
+            **Returns**:
+                dict: model's state.
+        """
+        state = self.state_dict()
+        return state
+    
+    def set_state(self, state: dict) -> None:
+        r"""
+        Set the model's state.
+
+            **Args**:
+                state (dict): model's state.
+        """
+        self.load_state_dict(state)
+
+    def set_forward_inputLayer(self, layer: nn.Module) -> None:
+        r"""
+        Set the input layer of the forward path.
+
+            **Args**:
+                layer (nn.Module): input layer.
+        """
+        self.opt.set_inputLayer(layer)
+
+    def set_forward_outputLayer(self, layer: nn.Module) -> None:
+        r"""
+        Set the output layer of the forward path.
+
+            **Args**:
+                layer (nn.Module): output layer.
+        """
+        self.opt.set_outputLayer(layer)
 
     # ==================================================================================
     # =============================== SYSTEM SIMULATION ================================

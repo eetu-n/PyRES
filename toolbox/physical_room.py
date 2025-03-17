@@ -142,11 +142,6 @@ class PhRoom_dataset(PhRoom):
         n_L = self.low_level_info['ActiveAcousticEnhancementSystem']['SystemEmitters']['Number']
         n_A = self.low_level_info['StageAndAudience']['AudienceReceivers']['MonochannelNumber']
 
-        n_S = 1
-        n_M = 4
-        n_L = 4
-        n_A = 1
-
         return n_S, n_M, n_L, n_A
 
     def __load_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
@@ -197,6 +192,8 @@ class PhRoom_dataset(PhRoom):
                     w = torchaudio.transforms.Resample(fs, self.fs)(w)
                 matrix[:,i,j] = w.permute(1,0).squeeze()
 
+        # TODO: apply here normalization
+
         return matrix
     
 
@@ -227,7 +224,7 @@ class PhRoom_ideal(PhRoom):
         self.n_M = n_M
         self.n_A = n_A
 
-        self.__rirs, self.rir_length = self.__generate_rirs()
+        self.rirs, self.rir_length = self.__generate_rirs()
 
-    def __generate_rirs(self):
+    def __generate_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
         pass
