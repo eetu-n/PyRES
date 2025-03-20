@@ -1,11 +1,13 @@
+# ==================================================================
+# ============================ IMPORTS =============================
+# Miscellanous
 import numpy as np
+# Torch
 import torch
 import torch.nn as nn
+# Flamo
 from flamo import system
-from flamo.functional import (
-    get_magnitude,
-    get_eigenvalues
-)
+from flamo.functional import get_magnitude, get_eigenvalues
 from flamo.optimize.loss import mse_loss, masked_mse_loss
 from flamo.optimize.utils import generate_partitions
 
@@ -212,13 +214,15 @@ class colorless_reverb(mse_loss):
     def __init__(self, samplerate: int, freq_points: int, freqs: torch.Tensor):
         super().__init__()
         freq_axis = torch.linspace(0, samplerate/2, freq_points)
-        self.idxs = torch.argmin(torch.abs(freq_axis.unsqueeze(1) - freqs.unsqueeze(0)), dim=0)
+        freqs = freqs.repeat(freq_points, 1)
+        freq_axis = freq_axis.unsqueeze(1).repeat(1, freqs.shape[1])
+        self.idxs = torch.argmin(torch.abs(freq_axis - freqs), dim=0)
         self.freq_points = len(self.idxs)
 
     def forward(self, y_pred, y_target, model):
         processor = system.Shell(core=model.get_V_ML())
         mag_response = get_magnitude(processor.get_freq_response(identity=True))
-        prediction = mag_response[self.idxs]
+        prediction = mag_response[:,self.idxs,:,:]
         target = torch.ones_like(prediction)
 
         return self.mse_loss(prediction, target)

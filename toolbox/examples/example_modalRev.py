@@ -11,21 +11,20 @@ from flamo.functional import db2mag, mag2db
 
 from full_system import AAES
 from physical_room import PhRoom_dataset
-from virtual_room import unitary_connections
-from optimization import system_equalization_curve
-from loss_functions import MSE_evs_mod
-from plots import plot_evs, plot_spectrograms
+from virtual_room import phase_canceling_modal_reverb
+from loss_functions import MSE_evs_idxs, colorless_reverb
+from plots import plot_raw_evs, plot_evs, plot_spectrograms
 
 torch.manual_seed(130297)
 
 
-def example_unitary_connections(args) -> None:
+def example_phase_cancellation(args) -> None:
 
     # --------------------- Parameters ------------------------
     # Time-frequency
-    samplerate = 48000                 # Sampling frequency
-    nfft = samplerate                  # FFT size
-    alias_decay_db = 0                 # Anti-time-aliasing decay in dB
+    samplerate = 1000                 # Sampling frequency
+    nfft = samplerate*2                  # FFT size
+    alias_decay_db = -20                 # Anti-time-aliasing decay in dB
 
     # Physical room
     rirs_dir = 'LA-lab_1'              # Path to the room impulse responses
@@ -37,10 +36,19 @@ def example_unitary_connections(args) -> None:
     n_aud = srs_rcs['n_A']             # Number of audience positions
 
     # Virtual room
-    virtual_room = unitary_connections(
+    MR_n_modes = 150                   # Modal reverb number of modes
+    MR_f_low = 50                      # Modal reverb lowest mode frequency
+    MR_f_high = 450                    # Modal reverb highest mode frequency
+    MR_t60 = 1.00                      # Modal reverb reverberation time
+    virtual_room = phase_canceling_modal_reverb(
         n_M=n_mcs,
         n_L=n_lds,
+        fs=samplerate,
         nfft=nfft,
+        n_modes=MR_n_modes,
+        low_f_lim=MR_f_low,
+        high_f_lim=MR_f_high,
+        t60=MR_t60,
         requires_grad=True,
         alias_decay_db=alias_decay_db
     )
@@ -55,7 +63,7 @@ def example_unitary_connections(args) -> None:
         nfft = nfft,
         physical_room = physical_room,
         virtual_room = virtual_room,
-        alias_decay_db=alias_decay_db
+        alias_decay_db = alias_decay_db
     )
 
     # Apply safe margin
@@ -72,13 +80,11 @@ def example_unitary_connections(args) -> None:
         dsp.Transform(lambda x: x.diag_embed()),
         dsp.FFT(nfft)
         ))
-    
+
     # ----------------- Initialize dataset --------------------
     dataset_input = torch.zeros(args.batch_size, nfft//2+1, n_mcs)
     dataset_input[:,0,:] = 1
-    dataset_target = system_equalization_curve(evs_init, samplerate, nfft, f_crossover = 8000)
-    dataset_target = dataset_target.view(1,-1,1).expand(args.batch_size, -1, n_mcs)
-
+    dataset_target = torch.zeros(args.batch_size, nfft//2+1, n_mcs)
     dataset = Dataset(
         input = dataset_input,
         target = dataset_target,
@@ -98,20 +104,25 @@ def example_unitary_connections(args) -> None:
     )
 
     # ---------------- Initialize Loss Function ---------------
-    criterion = MSE_evs_mod(
-        iter_num=args.num,
-        freq_points=nfft//2+1,
-        samplerate=samplerate,
-        lowest_f=20,
-        crossover_freq=8000,
-        highest_f=15000
+    MR_freqs = virtual_room.resonances[:,0,0].clone().detach()
+    criterion1 = MSE_evs_idxs(
+        iter_num = args.num,
+        freq_points = nfft//2+1,
+        samplerate = samplerate,
+        freqs = MR_freqs
     )
-    trainer.register_criterion(criterion, 1.0)
+    trainer.register_criterion(criterion1, 1.5)
+    criterion2 = colorless_reverb(
+        samplerate = samplerate,
+        freq_points = nfft//2+1,
+        freqs = MR_freqs
+    )
+    trainer.register_criterion(criterion2, 0.5, requires_model=True)
     
-    # ------------------- Train the model --------------------
+    # -------------------- Train the model --------------------
     trainer.train(train_loader, valid_loader)
 
-    # ------------ Performance after optimization ------------
+    # ------------- Performance after optimization ------------
     # Save the model state
     # save_model_params(model, filename='AA_parameters_optim')
 
@@ -119,14 +130,13 @@ def example_unitary_connections(args) -> None:
     evs_opt = model.open_loop_eigenvalues().squeeze(0)
     ir_opt = model.system_simulation().squeeze(0)
     
-    # ------------------------ Plots -------------------------
-    plot_evs(evs_init, evs_opt, samplerate, nfft, 20, 20000)
-    plot_spectrograms(ir_init[:,0], ir_opt[:,0], samplerate, nfft=2**8, noverlap=2**7)
+    # ------------------------- Plots -------------------------
+    plot_raw_evs(evs_init, evs_opt)
+    plot_evs(evs_init, evs_opt, samplerate, nfft, 20, 480)
+    plot_spectrograms(ir_init[:,0], ir_opt[:,0], samplerate, nfft=2**4, noverlap=2**3)
 
+    torch.save(model.get_state(), os.path.join('./toolbox/optimization/', time.strftime("%Y-%m-%d_%H.%M.%S.pt")))
 
-    # torch.save(model.get_state(), os.path.join('./toolbox/optimization/', time.strftime("%Y-%m-%d_%H.%M.%S.pt")))
-
-    
     return None
 
 
@@ -139,7 +149,7 @@ if __name__ == '__main__':
     
     #----------------------- Dataset ----------------------
     parser.add_argument('--batch_size', type=int, default=1, help='batch size for training')
-    parser.add_argument('--num', type=int, default=2**3,help = 'dataset size')
+    parser.add_argument('--num', type=int, default=2**6,help = 'dataset size')
     parser.add_argument('--device', type=str, default='cpu', help='device to use for computation')
     parser.add_argument('--split', type=float, default=0.8, help='split ratio for training and validation')
     #---------------------- Training ----------------------
@@ -164,4 +174,4 @@ if __name__ == '__main__':
         f.write('\n'.join([str(k) + ',' + str(v) for k, v in sorted(vars(args).items(), key=lambda x: x[0])]))
 
     # Run examples
-    example_unitary_connections(args)
+    example_phase_cancellation(args)

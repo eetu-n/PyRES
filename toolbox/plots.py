@@ -1,10 +1,17 @@
+# ==================================================================
+# ============================ IMPORTS =============================
+# Miscellanous
 import matplotlib.pyplot as plt
 from matplotlib import mlab
 import seaborn as sns
 import numpy as np
+# Torch
 import torch
+# Flamo
 from flamo.functional import mag2db, get_magnitude, find_onset
 
+# ==================================================================
+# ========================== PHYSICAL ROOM =========================
 
 def plot_coupling(rirs):
 
@@ -54,6 +61,44 @@ def plot_DRR(rirs, fs):
 
     plt.show(block=True)
 
+
+# ==================================================================
+# ========================== VIRTUAL ROOM ==========================
+
+def plot_dsps(identity, unitary, firs, modal_reverb, fdn, poletti, fs, nfft):
+
+    n_samples = torch.max(torch.tensor([identity.shape[0], unitary.shape[0], firs.shape[0], modal_reverb.shape[0], fdn.shape[0], poletti.shape[0]]))
+    t_axis = torch.linspace(0, n_samples/fs, n_samples)
+    y1 = torch.zeros(n_samples,)
+    y1[:identity.shape[0]] = identity[:,0,0].squeeze()
+    y2 = torch.zeros(n_samples,)
+    y2[:unitary.shape[0]] = unitary[:,0,0].squeeze()
+    y3 = torch.zeros(n_samples,)
+    y3[:firs.shape[0]] = firs[:,0,0].squeeze()
+    y4 = torch.zeros(n_samples,)
+    y4[:modal_reverb.shape[0]] = modal_reverb[:,0,0].squeeze()
+    y5 = torch.zeros(n_samples,)
+    y5[:fdn.shape[0]] = fdn[:,0,0].squeeze()
+    y6 = torch.zeros(n_samples,)
+    y6[:poletti.shape[0]] = poletti[:,0,0].squeeze()
+
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.figure(figsize=(7,6))
+    plt.subplot(2,1,1)
+    
+    plt.xlabel('Time in seconds')
+    plt.ylabel('Amplitude in dB')
+    # plt.xlim(20,20000)
+    # plt.ylim(-60,0)
+    # plt.xscale('log')
+    plt.yscale('log')
+    plt.grid()
+    plt.tight_layout()
+    plt.show(block=True)
+
+# ==================================================================
+# ======================= EVALUATION METRICS =======================
+
 # def plot_evs_distributions(evs_1: torch.Tensor, evs_2: torch.Tensor, fs: int, nfft: int, lower_f_lim: float, higher_f_lim: float, label1: str='Initialized', label2: str='Optimized') -> None:
 #     r"""
 #     Plot the magnitude distribution of the given eigenvalues.
@@ -85,8 +130,8 @@ def plot_DRR(rirs, fs):
 #     ax.yaxis.grid(True)
 #     plt.title(f'Eigenvalue Magnitude Distribution\nbetween {lower_f_lim} Hz and {higher_f_lim} Hz')
 #     plt.tight_layout()
+#     plt.show(block=True)
 
-    plt.show(block=True)
 
 def plot_evs(evs_init, evs_opt, fs: int, nfft: int, lower_f_lim: float, higher_f_lim: float):
     """
@@ -120,6 +165,7 @@ def plot_evs(evs_init, evs_opt, fs: int, nfft: int, lower_f_lim: float, higher_f
 
     plt.show(block=True)
 
+
 def plot_spectrograms(y_1: torch.Tensor, y_2: torch.Tensor, fs: int, nfft: int=2**10, noverlap: int=2**8, label1='Initialized', label2='Optimized', title='System Impulse Response Spectrograms') -> None:
     r"""
     Plot the spectrograms of the system impulse responses at initialization and after optimization.
@@ -146,13 +192,13 @@ def plot_spectrograms(y_1: torch.Tensor, y_2: torch.Tensor, fs: int, nfft: int=2
     
     plt.subplot(2,1,1)
     plt.pcolormesh(t, f, 10*np.log10(Spec_init), cmap='magma', vmin=-100, vmax=0)
-    plt.ylim(20, 20000)
+    plt.ylim(20, fs//2)
     plt.yscale('log')
     plt.title(label1)
 
     plt.subplot(2,1,2)
     im = plt.pcolormesh(t, f, 10*np.log10(Spec_opt), cmap='magma', vmin=-100, vmax=0)
-    plt.ylim(20, 20000)
+    plt.ylim(20, fs//2)
     plt.yscale('log')
     plt.title(label2)
 
@@ -167,6 +213,7 @@ def plot_spectrograms(y_1: torch.Tensor, y_2: torch.Tensor, fs: int, nfft: int=2
     cbar.ax.set_yticks(ticks, ['-100','-80','-60','-40','-20','0'])
 
     plt.show(block=True)
+
 
 def plot_ptmr(evs, fs, nfft):
     
@@ -192,44 +239,4 @@ def plot_ptmr(evs, fs, nfft):
     # plt.xscale('log')
     # plt.grid()
     plt.tight_layout()
-    plt.show(block=True)
-
-
-def plot_dsps(identity, unitary, firs, modal_reverb, fdn, poletti, fs, nfft):
-
-    n_samples = torch.max(torch.tensor([identity.shape[0], unitary.shape[0], firs.shape[0], modal_reverb.shape[0], fdn.shape[0], poletti.shape[0]]))
-    t_axis = torch.linspace(0, n_samples/fs, n_samples)
-    y1 = torch.zeros(n_samples,)
-    y1[:identity.shape[0]] = identity[:,0,0].squeeze()
-    y2 = torch.zeros(n_samples,)
-    y2[:unitary.shape[0]] = unitary[:,0,0].squeeze()
-    y3 = torch.zeros(n_samples,)
-    y3[:firs.shape[0]] = firs[:,0,0].squeeze()
-    y4 = torch.zeros(n_samples,)
-    y4[:modal_reverb.shape[0]] = modal_reverb[:,0,0].squeeze()
-    y5 = torch.zeros(n_samples,)
-    y5[:fdn.shape[0]] = fdn[:,0,0].squeeze()
-    y6 = torch.zeros(n_samples,)
-    y6[:poletti.shape[0]] = poletti[:,0,0].squeeze()
-
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
-    plt.figure(figsize=(7,6))
-    plt.subplot(2,1,1)
-    
-    plt.xlabel('Time in seconds')
-    plt.ylabel('Amplitude in dB')
-    # plt.xlim(20,20000)
-    # plt.ylim(-60,0)
-    # plt.xscale('log')
-    plt.yscale('log')
-    plt.grid()
-    plt.tight_layout()
-    plt.show(block=True)
-
-
-def plot_raw_evs(evs_init, evs_opt):
-
-    plt.figure()
-    plt.plot(mag2db(get_magnitude(evs_init.reshape(evs_init.shape[0]*evs_init.shape[1],1))))
-    plt.plot(mag2db(get_magnitude(evs_opt.reshape(evs_opt.shape[0]*evs_opt.shape[1],1))))
     plt.show(block=True)

@@ -1,31 +1,32 @@
+# ==================================================================
+# ============================ IMPORTS =============================
+# Miscellanous
 from collections import OrderedDict
 import json
-
+# Torch
 import torch
 import torchaudio
 
-class PhRoom(object):
-    def __init__(self, fs: int) -> None:
-        r"""
-        Room impulse response wrapper class.
 
-            **Args**:
-                - dir (str): Path to the room impulse responses.
-                - n_S (int): Number of sources. Defaults to 1.
-                - n_L (int): Number of loudspeakers. Defaults to 1.
-                - n_M (int): Number of microphones. Defaults to 1.
-                - n_A (int): Number of audience members. Defaults to 1.
-                - fs (int): Sample rate [Hz].
+# ==================================================================
+# ========================= ABSTRACT CLASS =========================
+
+class PhRoom(object):
+    r"""
+    Physical room abstraction class.
+    """
+    def __init__(self) -> None:
+        r"""
+        Initializes the PhRoom object.
         """
         object.__init__(self)
-        self.fs = fs
 
         self.n_S = None
         self.n_L = None
         self.n_M = None
         self.n_A = None
 
-        self.rirs = torch.Tensor()
+        self.rirs = torch.empty()
         self.rir_length = None
     
     def get_ems_rcs_number(self) -> OrderedDict:
@@ -35,12 +36,7 @@ class PhRoom(object):
             **Returns**:
                 OrderedDict: Number of sources and receivers.
         """
-        scs_rcs = OrderedDict()
-        scs_rcs.update({'n_S': self.n_S})
-        scs_rcs.update({'n_M': self.n_M})
-        scs_rcs.update({'n_L': self.n_L})
-        scs_rcs.update({'n_A': self.n_A})
-        return scs_rcs
+        return self.n_S, self.n_M, self.n_L, self.n_A
     
     def get_stg_to_aud(self) -> torch.Tensor:
         r"""
@@ -49,7 +45,7 @@ class PhRoom(object):
             **Returns**:
                 torch.Tensor: Sources to audience RIRs. shape = (samples, n_A, n_S).
         """
-        return self.rirs['stg_to_aud'].clone().detach()
+        return self.rirs['stg_to_aud']
 
     def get_stg_to_mcs(self) -> torch.Tensor:
         r"""
@@ -58,7 +54,7 @@ class PhRoom(object):
             **Returns**:
                 torch.Tensor: Sources to microphones RIRs. shape = (samples, n_M, n_S).
         """
-        return self.rirs['stg_to_sys'].clone().detach()
+        return self.rirs['stg_to_sys']
     
     def get_lds_to_aud(self) -> torch.Tensor:
         r"""
@@ -67,7 +63,7 @@ class PhRoom(object):
             **Returns**:
                 torch.Tensor: Loudspeakers to audience RIRs. shape = (samples n_A, n_L).
         """
-        return self.rirs['sys_to_aud'].clone().detach()
+        return self.rirs['sys_to_aud']
 
     def get_lds_to_mcs(self) -> torch.Tensor:
         r"""
@@ -76,7 +72,7 @@ class PhRoom(object):
             **Returns**:
                 torch.Tensor: Loudspeakers to microphones RIRs. shape = (samples, n_M, n_L).
         """
-        return self.rirs['sys_to_sys'].clone().detach()
+        return self.rirs['sys_to_sys']
     
     def get_all_rirs(self) -> OrderedDict:
         r"""
@@ -92,50 +88,65 @@ class PhRoom(object):
         RIRs.update({'H_LA': self.get_lds_to_aud()})
         return RIRs
 
+
+# ==================================================================
+# ========================== DATASET CLASS =========================
+
 class PhRoom_dataset(PhRoom):
-    def __init__(self, fs: int, room_name: str) -> None:
+    r"""
+    Subclass of PhRoom that loads the room impulse responses from the dataset.
+    """
+    def __init__(self, fs: int, dataset_directory: str, room_name: str) -> None:
         r"""
-        Room impulse response wrapper class.
+        Initializes the PhRoom_dataset object.
 
             **Args**:
-                - dir (str): Path to the room impulse responses.
-                - n_S (int): Number of sources. Defaults to 1.
-                - n_L (int): Number of loudspeakers. Defaults to 1.
-                - n_M (int): Number of microphones. Defaults to 1.
-                - n_A (int): Number of audience members. Defaults to 1.
                 - fs (int): Sample rate [Hz].
+                - dataset_directory (str): Path to the dataset.
+                - room_name (str): Name of the room.
         """
-        super().__init__(fs=fs)
+        super().__init__()
 
-        self.high_level_info = self.__find_room_in_dataset(room_name)
-        self.low_level_info = self.__get_room_info(self.high_level_info['RoomDirectory'])
+        self.fs = fs
 
-        self.n_S, self.n_M, self.n_L, self.n_A = self.__find_srs_rcs_number()
-
+        self.high_level_info = self.__find_room_in_dataset(
+            ds_dir=dataset_directory,
+            room=room_name
+            )
+        self.low_level_info = self.__get_room_info(
+            ds_dir=dataset_directory,
+            room_dir=self.high_level_info['RoomDirectory']
+        )
+        self.n_S, self.n_M, self.n_L, self.n_A = self.__ems_rcs_number()
         self.rirs, self.rir_length = self.__load_rirs()
 
-    def __find_room_in_dataset(self, room_name) -> dict:
+    def __find_room_in_dataset(self, ds_dir: str, room: str) -> dict:
         r"""
         Finds the room in the dataset.
+
+            **Args**:
+                - ds_dir (str): Path to the dataset.
+                - room (str): Name of the room.
         """
-        # TODO: Also, the dataset is not necessarily next to the toolbox, where should it go? Do I just ask people to place here the path?
-        with open(f"./AA_Dataset/datasetInfo.json", 'r') as file:
+        ds_dir = ds_dir.rstrip('/')
+        with open(f"{ds_dir}/datasetInfo.json", 'r') as file:
             data = json.load(file)
         
-        return data['Rooms'][room_name]
+        return data['Rooms'][room]
     
-    def __get_room_info(self, room_directory: str) -> dict:
+    def __get_room_info(self, ds_dir: str, room_dir: str) -> dict:
         r"""
         Gets the room information.
         """
-        with open(f"./AA_Dataset/data/{room_directory}/roomInfo.json", 'r') as file:
+        ds_dir = ds_dir.rstrip('/')
+        with open(f"{ds_dir}/data/{room_dir}/roomInfo.json", 'r') as file:
             data = json.load(file)
 
         return data
     
-    def __find_srs_rcs_number(self) -> tuple[int, int, int, int]:
+    def __ems_rcs_number(self) -> tuple[int, int, int, int]:
         r"""
-        Scans the room information for the number of sources and receivers.
+        Scans the room information for the number of emitters and receivers.
         """
         n_S = self.low_level_info['StageAndAudience']['StageEmitters']['Number']
         n_M = self.low_level_info['ActiveAcousticEnhancementSystem']['SystemReceivers']['Number']
@@ -144,10 +155,13 @@ class PhRoom_dataset(PhRoom):
 
         return n_S, n_M, n_L, n_A
 
-    def __load_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
+    def __load_rirs(self, ds_dir: str) -> tuple[OrderedDict[str, torch.Tensor], int]:
         r"""
         Loads the room impulse responses.
 
+            **Args**:
+                - ds_dir (str): Path to the dataset.
+            
             **Returns**:
                 tuple[OrderedDict[str, torch.Tensor], int]: Room impulse responses and their length.
         """
@@ -160,7 +174,8 @@ class PhRoom_dataset(PhRoom):
         if rirs_fs != self.fs:
             rirs_length = int(self.fs * rirs_length/rirs_fs)
 
-        path_root = f"./AA_Dataset/data/{self.high_level_info['RoomDirectory']}/{rirs_info['Directory']}"
+        ds_dir = ds_dir.rstrip('/')
+        path_root = f"{ds_dir}/data/{self.high_level_info['RoomDirectory']}/{rirs_info['Directory']}"
 
         path = f"{path_root}/{rirs_info['StageAudienceRirs']['Directory']}"
         stg_to_aud = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_S, n_receivers=self.n_A, fs=rirs_fs, n_samples=rirs_length)
@@ -197,27 +212,35 @@ class PhRoom_dataset(PhRoom):
         return matrix
     
 
-class PhRoom_ideal(PhRoom):
-    def __init__(self, fs: int, n_S: int, n_L: int, n_A: int, n_M: int) -> None:
+# ==================================================================
+# =================== WHITE GAUSSIAN NOISE CLASS ===================
+
+class PhRoom_wgn(PhRoom):
+    r"""
+    Subclass of PhRoom that generates the room impulse responses of a shoebox room approximated to white Gaussian noise.
+    """
+    def __init__(self, room_size: tuple[float, float, float], fs: int, n_S: int, n_L: int, n_A: int, n_M: int) -> None:
         r"""
-        Room impulse response wrapper class.
+        Initializes the PhRoom_wgn object.
 
             **Args**:
-                - dir (str): Path to the room impulse responses.
+                - room_size (tuple[float, float, float]): Room size in meters.
                 - n_S (int): Number of sources. Defaults to 1.
                 - n_L (int): Number of loudspeakers. Defaults to 1.
                 - n_M (int): Number of microphones. Defaults to 1.
                 - n_A (int): Number of audience members. Defaults to 1.
                 - fs (int): Sample rate [Hz].
         """
-        assert n_S >= 0, "Not enough stage sources."
-        assert n_L >= 1, "Not enough system loudspeakers."
-        assert n_M >= 1, "Not enough system microphones."
-        assert n_A >= 0, "Not enough audience receivers."
+        assert n_S > 0, "Not enough stage sources."
+        assert n_L > 0, "Not enough system loudspeakers."
+        assert n_M > 0, "Not enough system microphones."
+        assert n_A > 0, "Not enough audience receivers."
 
         super().__init__(self)
 
         self.fs = fs
+
+        self.room_size = room_size
         
         self.n_S = n_S
         self.n_L = n_L
@@ -227,4 +250,5 @@ class PhRoom_ideal(PhRoom):
         self.rirs, self.rir_length = self.__generate_rirs()
 
     def __generate_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
+        # TODO: generate exponentially-decaying white-Gaussian-noise sequences and zero pad them based on room size simulating transducers positioning
         pass
