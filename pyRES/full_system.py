@@ -9,12 +9,13 @@ import torch.nn as nn
 from flamo import dsp, system
 from flamo.functional import get_magnitude, get_eigenvalues
 # PyRES
-from physical_room import PhRoom
+from pyRES.physical_room import PhRoom
+from pyRES.virtual_room import VrRoom
 
 
 # ==================================================================
-# ================ REVERBERATION ENHANCEMENT SYSTEM ================
-# ========================= TEMPLATE CLASS =========================
+# ================ REVERBERATION ENHANCEMENT SYSTEM ================]
+
 class RES(nn.Module):
     r"""
     Template for the Reverberation Enhancement System (RES) model.
@@ -42,7 +43,7 @@ class RES(nn.Module):
             n_A: int=1,
             fs: int=48000,
             nfft: int=2**11,
-            virtual_room: nn.Module=None,
+            virtual_room: VrRoom=None,
             alias_decay_db: float=0
         ):
         r"""
@@ -67,56 +68,37 @@ class RES(nn.Module):
         self.alias_decay_db = alias_decay_db
 
         # Physical room
+        # TODO: do not receive n_S, n_M, n_L, n_A as arguments, check that n_L and n_M are the same for physical and virtual room, and take n_S and n_A from the physical room
+        # TODO: same with fs, nfft and alias_decay_db, do not receive them as argument, check compatibility between physical and virtual room
         self.n_S = n_S
         self.n_M = n_M
         self.n_L = n_L
         self.n_A = n_A
 
         self.__H = physical_room
-        self.H_SM = dsp.Filter(
-            size=(self.__H.rir_length, self.n_M, self.n_S),
-            nfft=self.nfft,
-            requires_grad=False,
-            alias_decay_db=self.alias_decay_db
-        )
-        self.H_SM.assign_value(self.__H.get_stg_to_mcs())
-        self.H_SA = dsp.Filter(
-            size=(self.__H.rir_length, self.n_A, self.n_S),
-            nfft=self.nfft,
-            requires_grad=False,
-            alias_decay_db=self.alias_decay_db
-        )
-        self.H_SA.assign_value(self.__H.get_stg_to_aud())
-        self.H_LM = dsp.Filter(
-            size=(self.__H.rir_length, n_M, n_L),
-            nfft=self.nfft,
-            requires_grad=False,
-            alias_decay_db=self.alias_decay_db
-        )
-        self.H_LM.assign_value(self.__H.get_lds_to_mcs())
-        self.H_LA = dsp.Filter(
-            size=(self.__H.rir_length, n_A, n_L),
-            nfft=self.nfft,
-            requires_grad=False,
-            alias_decay_db=self.alias_decay_db
-        )
-        self.H_LA.assign_value(self.__H.get_lds_to_aud())
 
         # Virtual room
         if virtual_room is None:
             virtual_room = dsp.Gain(size=(n_L, n_M), nfft=self.nfft, requires_grad=True, alias_decay_db=alias_decay_db)
-        self.V_ML = virtual_room
+        self.__v_ML = virtual_room
 
         # System gain
-        self.G = dsp.parallelGain(size=(n_L,), nfft=self.nfft, alias_decay_db=alias_decay_db)
+        self.__G = dsp.parallelGain(size=(n_L,), nfft=self.nfft, alias_decay_db=alias_decay_db)
         self.set_G_to_GBI()
 
         # Optimization routine
-        self.__opt = system.Shell(core=self.__open_loop())
+        self.__opt = system.Shell(
+            core=self.open_loop(),
+            input_layer=system.Series(
+                dsp.Transform(lambda x: x.diag_embed()),
+                dsp.FFT(self.nfft)
+            )
+        )
 
     # ==================================================================================
     # ================================== FORWARD PATH ==================================
 
+    # TODO: cancel this
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         r"""
         Computes one iteration of the optimization routine.
@@ -130,6 +112,76 @@ class RES(nn.Module):
         return self.__opt(x)
     
     # ==================================================================================
+    # ============================ PHYSICAL ROOM METHODS ===============================
+
+    def get_h_SA(self) -> nn.Module:
+        f"""
+        Returns the physical-room module from sound sources to audience positions.
+
+            **Returns**:
+                nn.Module: sound-source-to-audience-positions
+        """
+        return self.__H.h_SA
+    
+    def get_h_SM(self) -> nn.Module:
+        f"""
+        Returns the physical-room module from sound sources to microphones.
+
+            **Returns**:
+                nn.Module: sound-source-to-microphones
+        """
+        return self.__H.h_SM
+
+    def get_h_LM(self) -> nn.Module:
+        f"""
+        Returns the physical-room module from loudspeakers to microphones.
+
+            **Returns**:
+                nn.Module: loudspeaker-to-microphone impulse-response module.
+        """
+        return self.__H.h_LM
+    
+    def get_h_LA(self) -> nn.Module:
+        f"""
+        Returns the physical-room module from loudspeakers to audience positions.
+
+            **Returns**:
+                nn.Module: loudspeaker-to-audience-positions
+        """
+        return self.__H.h_LA
+    
+    # ==================================================================================
+    # ============================= VIRTUAL ROOM METHODS ===============================
+
+    def get_v_ML(self) -> nn.Module:
+        f"""
+        Returns the virtual room.
+
+            **Returns**:
+                nn.Module: virtual room.
+        """
+        return self.__v_ML
+    
+    def get_v_ML_responses(self) -> tuple[torch.Tensor, torch.Tensor]:
+        r"""
+        Computes the time and frequency responses of the virtual room.
+        
+            **Returns**:
+                tuple[torch.Tensor, torch.Tensor]: time and frequency responses
+        """
+
+        # Generate virtual room
+        v_ml = system.Shell(
+            core=self.get_v_ML()
+        )
+        with torch.no_grad():
+            # Get the virtual room time and frequency responses
+            v_ml_ir = v_ml.get_time_response(fs=self.fs, identity=True)
+            v_ml_fr = v_ml.get_freq_response(fs=self.fs, identity=True)
+
+        return v_ml_ir, v_ml_fr
+    
+    # ==================================================================================
     # ============================== SYSTEM GAIN METHODS ===============================
     
     def get_G(self) -> nn.Module:
@@ -139,7 +191,7 @@ class RES(nn.Module):
             **Returns**:
                 torch.Tensor: system gain value (linear scale).
         """
-        return self.G
+        return self.__G
 
     def set_G(self, g: float) -> None:
         r"""
@@ -149,7 +201,7 @@ class RES(nn.Module):
                 g (float): new system gain value (linear scale).
         """
         assert isinstance(g, torch.FloatTensor), "G must be a torch.FloatTensor."
-        self.G.assign_value(g*torch.ones(self.n_L))
+        self.__G.assign_value(g*torch.ones(self.n_L))
 
     def compute_GBI(self, criterion: str='eigenvalue_magnitude') -> torch.Tensor:
         r"""
@@ -209,40 +261,9 @@ class RES(nn.Module):
         self.set_G(gbi)
 
     # ==================================================================================
-    # ============================= VIRTUAL ROOM METHODS ===============================
-
-    def __get_V_ML(self) -> nn.Module:
-        f"""
-        Returns the virtual room.
-
-            **Returns**:
-                nn.Module: virtual room.
-        """
-        return self.V_ML
-    
-    def get_V_ML_responses(self) -> tuple[torch.Tensor, torch.Tensor]:
-        r"""
-        Computes the time and frequency responses of the virtual room.
-        
-            **Returns**:
-                tuple[torch.Tensor, torch.Tensor]: time and frequency responses
-        """
-
-        # Generate virtual room
-        v_ml = system.Shell(
-            core = self.__get_V_ML()
-        )
-        with torch.no_grad():
-            # Get the virtual room time and frequency responses
-            v_ml_ir = v_ml.get_time_response(fs=self.fs, identity=True)
-            v_ml_fr = v_ml.get_freq_response(fs=self.fs, identity=True)
-
-        return v_ml_ir, v_ml_fr
-
-    # ==================================================================================
     # ================================= FEEDBACK LOOP ==================================
 
-    def __open_loop(self)-> system.Series:
+    def open_loop(self)-> system.Series:
         r"""
         Generates the system open loop.
 
@@ -250,9 +271,9 @@ class RES(nn.Module):
                 system.Series: Series object instance implementing the system open loop.
         """
         modules = OrderedDict([
-            ('V_ML', self.__get_V_ML()),
+            ('V_ML', self.get_v_ML()),
             ('G', self.get_G()),
-            ('H_LM', self.H_LM)
+            ('H_LM', self.get_h_LM())
         ])
 
         return system.Series(modules)
@@ -267,7 +288,7 @@ class RES(nn.Module):
 
         # Generate open loop
         open_loop = system.Shell(
-            self.__open_loop(self.__get_V_ML(), self.get_G(), self.H_LM)
+            core=self.open_loop()
         )
         
         with torch.no_grad():
@@ -293,20 +314,20 @@ class RES(nn.Module):
 
         return evs
     
-    def __closed_loop(self) -> system.Recursion:
+    def closed_loop(self) -> system.Recursion:
         r"""
-        Generate a Recursion object instance representing the closed-loop system.
+        Generates a Recursion object instance representing the closed-loop system.
 
             **Returns**:
                 system.Recurion: Recursion object instance implementing the closed-loop.
         """
-        feedforward = system.Series(self.__get_V_ML(), self.get_G())
-        feedback = self.H_LM
+        feedforward = system.Series(self.get_v_ML(), self.get_G())
+        feedback = self.get_h_LM()
         return system.Recursion(fF=feedforward, fB=feedback)
     
     def closed_loop_responses(self) -> tuple[torch.Tensor, torch.Tensor]:
         r"""
-        Compute the time- and frequency-response matrices of the closed-loop.
+        Computes the time- and frequency-response matrices of the closed-loop.
 
             **Returns**:
                 tuple[torch.Tensor, torch.Tensor]: time and frequency responses.
@@ -314,7 +335,7 @@ class RES(nn.Module):
 
         # Generate closed loop
         closed_loop = system.Shell(
-            core = self.__closed_loop(self.__get_V_ML(), self.get_G(), self.H_LM)
+            core=self.closed_loop()
         )
         
         with torch.no_grad():
@@ -335,18 +356,18 @@ class RES(nn.Module):
                 tuple[Shell, Shell]: Shell object instances implementing the natural and the electroacoustic paths of the RES.
         """
         # Build closed feedback loop
-        closed_loop = self.__closed_loop(self.__get_V_ML(), self.get_G(), self.H_LM)
+        closed_loop = self.closed_loop(self.get_v_ML(), self.get_G(), self.get_h_LM())
         
         # Build the electroacoustic path
         ea_components = system.Series(OrderedDict([
-            ('H_SM', self.H_SM),
+            ('H_SM', self.get_h_SM()),
             ('FeedbackLoop', closed_loop),
-            ('H_LA', self.H_LA)
+            ('H_LA', self.get_h_LA())
         ]))
         ea_path = system.Shell(core=ea_components, input_layer=dsp.FFT(self.nfft), output_layer=dsp.iFFT(self.nfft))
         
         # Build the natural path
-        nat_path = system.Shell(core=self.H_SA, input_layer=dsp.FFT(self.nfft), output_layer=dsp.iFFT(self.nfft))
+        nat_path = system.Shell(core=self.get_h_SA(), input_layer=dsp.FFT(self.nfft), output_layer=dsp.iFFT(self.nfft))
 
         return nat_path, ea_path
     
@@ -398,9 +419,17 @@ class RES(nn.Module):
         """
         match to_optimize:
             case 'open_loop':
-                self.__opt = system.Shell(core=self.__open_loop())
+                self.__set_opt_inputLayer(system.Series(
+                    dsp.Transform(lambda x: x.diag_embed()),
+                    dsp.FFT(self.nfft))
+                )
+                self.__opt = system.Shell(core=self.open_loop())
             case 'closed_loop':
-                self.__opt = system.Shell(core=self.__closed_loop())
+                self.__set_opt_inputLayer(system.Series(
+                    dsp.Transform(lambda x: x.diag_embed()),
+                    dsp.FFT(self.nfft))
+                )
+                self.__opt = system.Shell(core=self.closed_loop())
             case _:
                 raise ValueError(f"Optimization routine '{to_optimize}' not recognized.")
             

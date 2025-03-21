@@ -7,13 +7,41 @@ from flamo import dsp, system
 from flamo.functional import db2mag
 from flamo.auxiliary.reverb import rt2slope
 # PyRES
-from functional import modal_reverb, FDN_absorption
+from pyRES.functional import modal_reverb, FDN_absorption
+
+
+# ==================================================================
+# ========================= ABSTRACT CLASS =========================
+
+class VrRoom(object):
+    r"""
+    Virtual room abstraction class.
+    """
+    def __init__(
+        self,
+        n_M: int,
+        n_L: int,
+        fs: int,
+        nfft: int,
+        alias_decay_db: float=0.0,
+    ):
+        r"""
+        Initializes the virtual room.
+        """
+
+        super().__init__()
+        
+        self.n_M = n_M
+        self.n_L = n_L
+        self.fs = fs
+        self.nfft = nfft
+        self.alias_decay_db = alias_decay_db
 
 
 # ==================================================================
 # ============================ MATRICES ============================
 
-class unitary_parallel_connections(dsp.parallelGain):
+class unitary_parallel_connections(VrRoom, dsp.parallelGain):
     r"""
     Unitary parallel connections for systems with independent channels.
     """
@@ -21,6 +49,7 @@ class unitary_parallel_connections(dsp.parallelGain):
         self,
         n_M: int = 1,
         n_L: int = 1,
+        fs: int = 48000,
         nfft: int = 2**11,
         alias_decay_db: float = 0.0,
     ):
@@ -36,18 +65,26 @@ class unitary_parallel_connections(dsp.parallelGain):
         
         assert n_M == n_L, "The number of system microphones and the number of system loudspeakers must be equal for unitary_independent_connections"
 
-        self.n_M = n_M
-        self.n_L = n_L
+        VrRoom.__init__(
+            self,
+            n_M=n_M,
+            n_L=n_L,
+            fs=fs,
+            nfft=nfft,
+            alias_decay_db=alias_decay_db
+        )
 
-        super().__init__(
+        dsp.parallelGain.__init__(
+            self,
             size = (self.n_M,),
-            nfft = nfft,
+            nfft = self.nfft,
             requires_grad = False,
-            alias_decay_db = alias_decay_db,
+            alias_decay_db = self.alias_decay_db,
         )
         self.assign_value(torch.ones(self.n_M,))
 
-class unitary_mixing_matrix(system.Series):
+
+class unitary_mixing_matrix(VrRoom, system.Series):
     r"""
     Unitary mixing matrix for systems with non-independent channels.
     """
@@ -55,6 +92,7 @@ class unitary_mixing_matrix(system.Series):
         self,
         n_M: int = 1,
         n_L: int = 1,
+        fs: int = 48000,
         nfft: int = 2**11,
         alias_decay_db: float = 0.0,
     ):
@@ -67,18 +105,25 @@ class unitary_mixing_matrix(system.Series):
                 - nfft (int): FFT size.
                 - alias_decay_db (float): Anti-time-aliasing decay in dB.
         """
-        
-        self.n_M = n_M
-        self.n_L = n_L
-        
-        coupling_1, mixing_matrix, coupling_2 = self.__components(
+
+        VrRoom.__init__(
+            self,
+            n_M=n_M,
+            n_L=n_L,
+            fs=fs,
             nfft=nfft,
             alias_decay_db=alias_decay_db
         )
 
-        super().__init__(coupling_1, mixing_matrix, coupling_2)
+        coupling_1, mixing_matrix, coupling_2 = self.__components()
+        system.Series.__init__(
+            self,
+            coupling_1,
+            mixing_matrix,
+            coupling_2
+        )
 
-    def __components(self, nfft: int, alias_decay_db: float) -> tuple[dsp.Gain, dsp.Matrix, dsp.Gain]:
+    def __components(self) -> tuple[dsp.Gain, dsp.Matrix, dsp.Gain]:
         r"""
         Initializes the components of the unitary mixing matrix.
         The coupling matrices allow for appropriate input-output channels for systems with different numbers of microphones and loudspeakers.
@@ -102,10 +147,10 @@ class unitary_mixing_matrix(system.Series):
 
         unitary = dsp.Matrix(
             size = (max_n, max_n),
-            nfft = nfft,
+            nfft = self.nfft,
             matrix_type = "orthogonal",
             requires_grad = False,
-            alias_decay_db = alias_decay_db,
+            alias_decay_db = self.alias_decay_db,
         )
 
         coupling_2 = self.__coupling(
@@ -141,7 +186,7 @@ class unitary_mixing_matrix(system.Series):
 # ==================================================================
 # ==================== FINITE IMPULSE RESPONSE =====================
 
-class random_FIRs(dsp.Filter):
+class random_FIRs(VrRoom, dsp.Filter):
     r"""
     Random FIR filter with a given order. Learnable FIR coefficients.
     """
@@ -149,6 +194,7 @@ class random_FIRs(dsp.Filter):
         self,
         n_M: int=1,
         n_L: int=1,
+        fs: int=48000,
         nfft: int=2**11,
         FIR_order: int=100,
         alias_decay_db: float=0.0,
@@ -166,19 +212,25 @@ class random_FIRs(dsp.Filter):
                 - requires_grad (bool): Whether the filter is learnable.
         """
 
-        self.n_M = n_M
-        self.n_L = n_L
-        self.FIR_order = FIR_order
-        
-        super().__init__(
-            size=(self.FIR_order, self.n_L, self.n_M),
+        VrRoom.__init__(
+            self,
+            n_M=n_M,
+            n_L=n_L,
+            fs=fs,
             nfft=nfft,
-            requires_grad=requires_grad,
             alias_decay_db=alias_decay_db
         )
+        self.FIR_order = FIR_order
+        
+        dsp.Filter.__init__(
+            self,
+            size=(self.FIR_order, self.n_L, self.n_M),
+            nfft=self.nfft,
+            requires_grad=requires_grad,
+            alias_decay_db=self.alias_decay_db
+        )
 
-
-class phase_canceling_modal_reverb(dsp.DSP):
+class phase_canceling_modal_reverb(VrRoom, dsp.DSP):
     r"""
     Phase canceling modal reverb. Learnable phases.
     """
@@ -211,14 +263,15 @@ class phase_canceling_modal_reverb(dsp.DSP):
                 - alias_decay_db (float): Anti-time-aliasing decay in dB.
         """
 
-        super().__init__(
-            size=(1, n_L, n_M, n_modes,),
+        VrRoom.__init__(
+            self,
+            n_M=n_M,
+            n_L=n_L,
+            fs=fs,
             nfft=nfft,
-            requires_grad=requires_grad,
             alias_decay_db=alias_decay_db
         )
 
-        self.fs = fs
         self.n_modes = n_modes
         self.resonances = torch.linspace(low_f_lim, high_f_lim, n_modes).view(
             -1, *(1,)*(len(self.param.shape[:-1]))).permute(
@@ -226,6 +279,15 @@ class phase_canceling_modal_reverb(dsp.DSP):
                     *self.param.shape)
         self.gains = torch.ones_like(self.param)
         self.t60 = t60 * torch.ones_like(self.param)
+
+        dsp.DSP.__init__(
+            self,
+            size=(1, self.n_L, self.n_M, self.n_modes,),
+            nfft=self.nfft,
+            requires_grad=requires_grad,
+            alias_decay_db=self.alias_decay_db
+        )
+
         self.initialize_class()
 
     def forward(self, x, ext_param=None):
@@ -311,25 +373,37 @@ class phase_canceling_modal_reverb(dsp.DSP):
         self.get_freq_convolve()
 
 
-class wgn_reverb(dsp.DSP):
+class wgn_reverb(VrRoom, dsp.DSP):
     # TODO: After modifying wgn_reverb in FLAMO, this class has RT and mean and/or std as parameters. Non-learnable...
     # TODO: wgn_reverb is used in get_freq_response()
     def __init__(
         self,
         n_M: int=1,
         n_L: int=1,
+        fs: int=48000,
         nfft: int=2**11,
         RT: float=1.0,
         mean: float=0.0,
         std: float=1.0,
-        requires_grad: bool=False
+        requires_grad: bool=False,
+        alias_decay_db: float=0.0,
     ):
+        
+        VrRoom.__init__(
+            self,
+            n_M=n_M,
+            n_L=n_L,
+            fs=fs,
+            nfft=nfft,
+            alias_decay_db=alias_decay_db
+        )
+
         pass
 
 # ==================================================================
 # =================== INFINITE IMPULSE RESPONSE ====================
 
-class FDN(system.Series):
+class FDN(VrRoom, system.Series):
     r"""
     Feedback delay network.
     """
@@ -356,14 +430,17 @@ class FDN(system.Series):
                 - alias_decay_db (float): Anti-time-aliasing decay in dB.
                 - requires_grad (bool): Whether the filter is learnable.
         """
-        
-        self.n_M = n_M
-        self.n_L = n_L
-        self.fs = fs
-        self.nfft = nfft
+
+        VrRoom.__init__(
+            self,
+            n_M=n_M,
+            n_L=n_L,
+            fs=fs,
+            nfft=nfft,
+            alias_decay_db=alias_decay_db
+        )
         self.t60_DC = t60_DC
         self.t60_NY = t60_NY
-        self.alias_decay_db = alias_decay_db
 
         max_n = torch.max(torch.tensor([n_M, n_L]))
 
@@ -382,7 +459,12 @@ class FDN(system.Series):
 
         )
 
-        super().__init__(input_gains, recursion, output_gains)
+        system.Series.__init__(
+            self,
+            input_gains,
+            recursion,
+            output_gains
+        )
 
     def __gains(self, inputs: int, outputs: int) -> dsp.Gain:
         r"""
@@ -457,7 +539,7 @@ class FDN(system.Series):
         return recursion
 
 
-class unitary_reverberator(system.Series):
+class unitary_reverberator(VrRoom, system.Series):
     r"""
     Unitary reverberator.
     Reference:
@@ -476,17 +558,26 @@ class unitary_reverberator(system.Series):
         r"""
         Initializes the unitary reverberator.
         """
-        
-        self.n_M = n_M
-        self.n_L = n_L
-        self.fs = fs
-        self.nfft = nfft
+
+        VrRoom.__init__(
+            self,
+            n_M=n_M,
+            n_L=n_L,
+            fs=fs,
+            nfft=nfft,
+            alias_decay_db=alias_decay_db
+        )
         self.t60 = t60
-        self.alias_decay_db = alias_decay_db
 
         coupling_in, recursion, feedforward, coupling_out  = self.__components()
         
-        super().__init__(coupling_in, recursion, feedforward, coupling_out)
+        system.Series.__init__(
+            self,
+            coupling_in,
+            recursion,
+            feedforward,
+            coupling_out
+        )
 
     def __components(self) -> tuple[dsp.Gain, system.Recursion, dsp.Filter, dsp.Gain]:
         r"""

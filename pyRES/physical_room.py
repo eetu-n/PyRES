@@ -6,6 +6,8 @@ import json
 # Torch
 import torch
 import torchaudio
+# Flamo
+from flamo import dsp
 
 
 # ==================================================================
@@ -15,18 +17,27 @@ class PhRoom(object):
     r"""
     Physical room abstraction class.
     """
-    def __init__(self) -> None:
+    def __init__(
+            self,
+            fs: int,
+            nfft: int,
+            alias_decay_db: float
+        ) -> None:
         r"""
         Initializes the PhRoom object.
         """
         object.__init__(self)
+
+        self.fs = fs
+        self.nfft = nfft
+        self.alias_decay_db = alias_decay_db
 
         self.n_S = None
         self.n_L = None
         self.n_M = None
         self.n_A = None
 
-        self.rirs = torch.empty()
+        self.rirs = torch.Tensor()
         self.rir_length = None
     
     def get_ems_rcs_number(self) -> OrderedDict:
@@ -87,6 +98,42 @@ class PhRoom(object):
         RIRs.update({'H_LM': self.get_lds_to_mcs()})
         RIRs.update({'H_LA': self.get_lds_to_aud()})
         return RIRs
+    
+    def create_modules(self) -> tuple[dsp.Filter, dsp.Filter, dsp.Filter, dsp.Filter]:
+
+        h_SM = dsp.Filter(
+            size=(self.rir_length, self.n_M, self.n_S),
+            nfft=self.nfft,
+            requires_grad=False,
+            alias_decay_db=self.alias_decay_db
+        )
+        h_SM.assign_value(self.get_stg_to_mcs())
+
+        h_SA = dsp.Filter(
+            size=(self.rir_length, self.n_A, self.n_S),
+            nfft=self.nfft,
+            requires_grad=False,
+            alias_decay_db=self.alias_decay_db
+        )
+        h_SA.assign_value(self.get_stg_to_aud())
+
+        h_LM = dsp.Filter(
+            size=(self.rir_length, self.n_M, self.n_L),
+            nfft=self.nfft,
+            requires_grad=False,
+            alias_decay_db=self.alias_decay_db
+        )
+        h_LM.assign_value(self.get_lds_to_mcs())
+
+        h_LA = dsp.Filter(
+            size=(self.rir_length, self.n_A, self.n_L),
+            nfft=self.nfft,
+            requires_grad=False,
+            alias_decay_db=self.alias_decay_db
+        )
+        h_LA.assign_value(self.get_lds_to_aud())
+
+        return h_SM, h_SA, h_LM, h_LA
 
 
 # ==================================================================
@@ -96,7 +143,14 @@ class PhRoom_dataset(PhRoom):
     r"""
     Subclass of PhRoom that loads the room impulse responses from the dataset.
     """
-    def __init__(self, fs: int, dataset_directory: str, room_name: str) -> None:
+    def __init__(
+            self,
+            fs: int,
+            nfft: int,
+            alias_decay_db: float,
+            dataset_directory: str,
+            room_name: str
+        ) -> None:
         r"""
         Initializes the PhRoom_dataset object.
 
@@ -105,20 +159,29 @@ class PhRoom_dataset(PhRoom):
                 - dataset_directory (str): Path to the dataset.
                 - room_name (str): Name of the room.
         """
-        super().__init__()
-
-        self.fs = fs
+        super().__init__(
+            self,
+            fs=fs,
+            nfft=nfft,
+            alias_decay_db=alias_decay_db
+        )
 
         self.high_level_info = self.__find_room_in_dataset(
             ds_dir=dataset_directory,
             room=room_name
-            )
+        )
+
         self.low_level_info = self.__get_room_info(
             ds_dir=dataset_directory,
             room_dir=self.high_level_info['RoomDirectory']
         )
+
         self.n_S, self.n_M, self.n_L, self.n_A = self.__ems_rcs_number()
-        self.rirs, self.rir_length = self.__load_rirs()
+        self.rirs, self.rir_length = self.__load_rirs(
+            ds_dir=dataset_directory
+        )
+
+        self.h_SM, self.h_SA, self.h_LM, self.h_LA = self.create_modules()
 
     def __find_room_in_dataset(self, ds_dir: str, room: str) -> dict:
         r"""
@@ -215,11 +278,22 @@ class PhRoom_dataset(PhRoom):
 # ==================================================================
 # =================== WHITE GAUSSIAN NOISE CLASS ===================
 
-class PhRoom_wgn(PhRoom):
+class PhRoom_rayleighDistributed(PhRoom):
     r"""
-    Subclass of PhRoom that generates the room impulse responses of a shoebox room approximated to white Gaussian noise.
+    Subclass of PhRoom that generates the room impulse responses of a shoebox room approximated to exponentially-decaying random sequences drawn by the Rayleigh distribution.
     """
-    def __init__(self, room_size: tuple[float, float, float], fs: int, n_S: int, n_L: int, n_A: int, n_M: int) -> None:
+    def __init__(
+            self,
+            room_size: tuple[float, float, float],
+            room_RT: float,
+            fs: int,
+            nfft: int,
+            alias_decay_db: float,
+            n_S: int,
+            n_L: int,
+            n_A: int, 
+            n_M: int
+        ) -> None:
         r"""
         Initializes the PhRoom_wgn object.
 
@@ -236,10 +310,14 @@ class PhRoom_wgn(PhRoom):
         assert n_M > 0, "Not enough system microphones."
         assert n_A > 0, "Not enough audience receivers."
 
-        super().__init__(self)
+        super().__init__(
+            self,
+            fs=fs,
+            nfft=nfft,
+            alias_decay_db=alias_decay_db
+        )
 
-        self.fs = fs
-
+        self.RT = room_RT
         self.room_size = room_size
         
         self.n_S = n_S
@@ -248,7 +326,77 @@ class PhRoom_wgn(PhRoom):
         self.n_A = n_A
 
         self.rirs, self.rir_length = self.__generate_rirs()
+        self.h_SM, self.h_SA, self.h_LM, self.h_LA = self.create_modules()
 
     def __generate_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
         # TODO: generate exponentially-decaying white-Gaussian-noise sequences and zero pad them based on room size simulating transducers positioning
+        # NOTE: Check torch.distributions.chi2.Chi2() and apply torch.sqrt() to obtain a Rayleigh distribution
+        pass
+
+
+class PhRoom_ISM(PhRoom):
+    r"""
+    Subclass of PhRoom that generates the room impulse responses of a shoebox room simulated through Image Source Method (ISM).
+    Reference:
+        pyroomacoustics:
+        https://pyroomacoustics.readthedocs.io/en/pypi-release/pyroomacoustics.room.html
+    """
+    def __init__(
+            self,
+            room_size: tuple[float, float, float],
+            room_RT: float,
+            ISM_max_order: int,
+            fs: int,
+            nfft: int,
+            alias_decay_db: float,
+            n_S: int,
+            n_L: int,
+            n_A: int,
+            n_M: int
+        ) -> None:
+        r"""
+        Initializes the PhRoom_wgn object.
+
+            **Args**:
+                - room_size (tuple[float, float, float]): Room size in meters.
+                - room_RT (float): Room reverberation time [s].
+                - ISM_max_order (int): Maximum order of the Image Source Method.
+                - n_S (int): Number of sources. Defaults to 1.
+                - n_L (int): Number of loudspeakers. Defaults to 1.
+                - n_M (int): Number of microphones. Defaults to 1.
+                - n_A (int): Number of audience members. Defaults to 1.
+                - fs (int): Sample rate [Hz].
+        """
+        assert n_S > 0, "Not enough stage sources."
+        assert n_L > 0, "Not enough system loudspeakers."
+        assert n_M > 0, "Not enough system microphones."
+        assert n_A > 0, "Not enough audience receivers."
+
+        super().__init__(
+            self,
+            fs=fs,
+            nfft=nfft,
+            alias_decay_db=alias_decay_db
+        )
+
+        self.RT = room_RT
+        self.room_size = room_size
+        self.max_order = ISM_max_order
+        
+        self.n_S = n_S
+        self.n_L = n_L
+        self.n_M = n_M
+        self.n_A = n_A
+
+        self.rirs, self.rir_length = self.__generate_rirs()
+        self.h_SM, self.h_SA, self.h_LM, self.h_LA = self.create_modules()
+
+    def __generate_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
+
+        # e_absorption, max_order = pra.inverse_sabine(rt60, room_dim)
+
+        # room = pra.ShoeBox(
+        #     room_dim, fs=16000, materials=pra.Material(e_absorption), max_order=max_order
+        # )
+
         pass

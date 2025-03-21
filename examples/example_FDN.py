@@ -12,7 +12,7 @@ from flamo.functional import db2mag, mag2db
 from full_system import AAES
 from physical_room import PhRoom_dataset
 from virtual_room import feedback_delay_network
-from optimization import system_equalization_curve
+from toolbox.metrics import system_equalization_curve
 from loss_functions import MSE_evs_mod
 from plots import plot_evs, plot_spectrograms, plot_raw_evs
 

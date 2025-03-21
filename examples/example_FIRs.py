@@ -1,7 +1,9 @@
+import sys
 import argparse
 import os
 import time
 import matplotlib.pyplot as plt
+
 import torch
 
 from flamo import system, dsp
@@ -9,12 +11,13 @@ from flamo.optimize.dataset import Dataset, load_dataset
 from flamo.optimize.trainer import Trainer
 from flamo.functional import db2mag, mag2db
 
-from full_system import AAES
-from physical_room import PhRoom_dataset
-from virtual_room import random_FIRs
-from optimization import system_equalization_curve
-from loss_functions import MSE_evs_mod
-from plots import plot_evs, plot_spectrograms, plot_raw_evs
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from pyRES.full_system import RES
+from pyRES.physical_room import PhRoom_dataset
+from pyRES.virtual_room import random_FIRs
+from pyRES.loss_functions import MSE_evs_mod
+from pyRES.utils import system_equalization_curve
+from pyRES.plots import plot_evs, plot_spectrograms
 
 torch.manual_seed(130297)
 
@@ -28,13 +31,14 @@ def example_FIRs(args) -> None:
     alias_decay_db = 0                 # Anti-time-aliasing decay in dB
 
     # Physical room
+    dataset_directory = './AA_dataset' # Path to the dataset
     rirs_dir = 'LA-lab_1'              # Path to the room impulse responses
-    physical_room = PhRoom_dataset(fs=samplerate, room_name=rirs_dir)
-    srs_rcs = physical_room.get_ems_rcs_number()
-    n_stg = srs_rcs['n_S']             # Number of sources
-    n_mcs = srs_rcs['n_M']             # Number of microphones
-    n_lds = srs_rcs['n_L']             # Number of loudspeakers
-    n_aud = srs_rcs['n_A']             # Number of audience positions
+    physical_room = PhRoom_dataset(
+        fs=samplerate,
+        dataset_directory=dataset_directory,
+        room_name=rirs_dir
+    )
+    n_stg, n_mcs, n_lds, n_aud = physical_room.get_ems_rcs_number()
 
     # Virtual room
     fir_order = 2**8                   # FIR filter order
@@ -48,7 +52,7 @@ def example_FIRs(args) -> None:
     )
 
     # ------------------- Model Definition --------------------
-    model = AAES(
+    model = RES(
         n_S = n_stg,
         n_M = n_mcs,
         n_L = n_lds,
@@ -70,10 +74,7 @@ def example_FIRs(args) -> None:
     ir_init = model.system_simulation().squeeze(0)
 
     # ---------------- Define optimization --------------------
-    model.set_forward_inputLayer(system.Series(
-        dsp.Transform(lambda x: x.diag_embed()),
-        dsp.FFT(nfft)
-        ))
+    model.set_optimization_routine("open_loop")
     
     # ----------------- Initialize dataset --------------------
     dataset_input = torch.zeros(args.batch_size, nfft//2+1, n_mcs)
@@ -122,7 +123,6 @@ def example_FIRs(args) -> None:
     ir_opt = model.system_simulation().squeeze(0)
     
     # ------------------------ Plots -------------------------
-    plot_raw_evs(evs_init, evs_opt)
     plot_evs(evs_init, evs_opt, samplerate, nfft, 20, 8000)
     plot_spectrograms(ir_init[:,0], ir_opt[:,0], samplerate, nfft=2**8, noverlap=2**7)
 
