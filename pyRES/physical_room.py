@@ -5,6 +5,7 @@ from collections import OrderedDict
 import json
 # Torch
 import torch
+import torch.nn as nn
 import torchaudio
 # Flamo
 from flamo import dsp
@@ -32,14 +33,17 @@ class PhRoom(object):
         self.nfft = nfft
         self.alias_decay_db = alias_decay_db
 
-        self.n_S = None
-        self.n_L = None
-        self.n_M = None
-        self.n_A = None
+        self.n_S: int
+        self.n_L: int
+        self.n_M: int
+        self.n_A: int
 
-        self.rirs = torch.Tensor()
-        self.rir_length = None
-    
+        self.rir_length: int
+        self.h_SM: nn.Module
+        self.h_SA: nn.Module
+        self.h_LM: nn.Module
+        self.h_LA: nn.Module
+
     def get_ems_rcs_number(self) -> OrderedDict:
         r"""
         Returns the number of emitters and receivers.
@@ -56,7 +60,7 @@ class PhRoom(object):
             **Returns**:
                 torch.Tensor: Sources to audience RIRs. shape = (samples, n_A, n_S).
         """
-        return self.rirs['stg_to_aud']
+        return self.h_SA
 
     def get_stg_to_mcs(self) -> torch.Tensor:
         r"""
@@ -65,7 +69,7 @@ class PhRoom(object):
             **Returns**:
                 torch.Tensor: Sources to microphones RIRs. shape = (samples, n_M, n_S).
         """
-        return self.rirs['stg_to_sys']
+        return self.h_SM
     
     def get_lds_to_aud(self) -> torch.Tensor:
         r"""
@@ -74,7 +78,7 @@ class PhRoom(object):
             **Returns**:
                 torch.Tensor: Loudspeakers to audience RIRs. shape = (samples n_A, n_L).
         """
-        return self.rirs['sys_to_aud']
+        return self.h_LA
 
     def get_lds_to_mcs(self) -> torch.Tensor:
         r"""
@@ -83,9 +87,9 @@ class PhRoom(object):
             **Returns**:
                 torch.Tensor: Loudspeakers to microphones RIRs. shape = (samples, n_M, n_L).
         """
-        return self.rirs['sys_to_sys']
+        return self.h_LM
     
-    def get_all_rirs(self) -> OrderedDict:
+    def get_rirs(self) -> OrderedDict:
         r"""
         Returns a copy of the system RIRs.
 
@@ -93,45 +97,45 @@ class PhRoom(object):
                 OrderedDict: The system room impulse responses.
         """
         RIRs = OrderedDict()
-        RIRs.update({'H_SM': self.get_stg_to_mcs()})
-        RIRs.update({'H_SA': self.get_stg_to_aud()})
-        RIRs.update({'H_LM': self.get_lds_to_mcs()})
-        RIRs.update({'H_LA': self.get_lds_to_aud()})
+        RIRs.update({'H_SM': self.get_stg_to_mcs().param.clone().detach()})
+        RIRs.update({'H_SA': self.get_stg_to_aud().param.clone().detach()})
+        RIRs.update({'H_LM': self.get_lds_to_mcs().param.clone().detach()})
+        RIRs.update({'H_LA': self.get_lds_to_aud().param.clone().detach()})
         return RIRs
     
-    def create_modules(self) -> tuple[dsp.Filter, dsp.Filter, dsp.Filter, dsp.Filter]:
+    def create_modules(self, rirs_SM: torch.Tensor, rirs_SA: torch.Tensor, rirs_LM: torch.Tensor, rirs_LA: torch.Tensor, rir_length: int) -> tuple[dsp.Filter, dsp.Filter, dsp.Filter, dsp.Filter]:
 
         h_SM = dsp.Filter(
-            size=(self.rir_length, self.n_M, self.n_S),
+            size=(rir_length, self.n_M, self.n_S),
             nfft=self.nfft,
             requires_grad=False,
             alias_decay_db=self.alias_decay_db
         )
-        h_SM.assign_value(self.get_stg_to_mcs())
+        h_SM.assign_value(rirs_SM)
 
         h_SA = dsp.Filter(
-            size=(self.rir_length, self.n_A, self.n_S),
+            size=(rir_length, self.n_A, self.n_S),
             nfft=self.nfft,
             requires_grad=False,
             alias_decay_db=self.alias_decay_db
         )
-        h_SA.assign_value(self.get_stg_to_aud())
+        h_SA.assign_value(rirs_SA)
 
         h_LM = dsp.Filter(
-            size=(self.rir_length, self.n_M, self.n_L),
+            size=(rir_length, self.n_M, self.n_L),
             nfft=self.nfft,
             requires_grad=False,
             alias_decay_db=self.alias_decay_db
         )
-        h_LM.assign_value(self.get_lds_to_mcs())
+        h_LM.assign_value(rirs_LM)
 
         h_LA = dsp.Filter(
-            size=(self.rir_length, self.n_A, self.n_L),
+            size=(rir_length, self.n_A, self.n_L),
             nfft=self.nfft,
             requires_grad=False,
             alias_decay_db=self.alias_decay_db
         )
-        h_LA.assign_value(self.get_lds_to_aud())
+        h_LA.assign_value(rirs_LA)
 
         return h_SM, h_SA, h_LM, h_LA
 
@@ -156,16 +160,18 @@ class PhRoom_dataset(PhRoom):
 
             **Args**:
                 - fs (int): Sample rate [Hz].
+                - nfft (int): Number of frequency bins.
+                - alias_decay_db (float): Anti-time-aliasing decay in dB.
                 - dataset_directory (str): Path to the dataset.
                 - room_name (str): Name of the room.
         """
         super().__init__(
-            self,
             fs=fs,
             nfft=nfft,
             alias_decay_db=alias_decay_db
         )
 
+        self.room_name = room_name
         self.high_level_info = self.__find_room_in_dataset(
             ds_dir=dataset_directory,
             room=room_name
@@ -177,11 +183,9 @@ class PhRoom_dataset(PhRoom):
         )
 
         self.n_S, self.n_M, self.n_L, self.n_A = self.__ems_rcs_number()
-        self.rirs, self.rir_length = self.__load_rirs(
+        self.h_SM, self.h_SA, self.h_LM, self.h_LA, self.rir_length = self.__load_rirs(
             ds_dir=dataset_directory
         )
-
-        self.h_SM, self.h_SA, self.h_LM, self.h_LA = self.create_modules()
 
     def __find_room_in_dataset(self, ds_dir: str, room: str) -> dict:
         r"""
@@ -229,34 +233,35 @@ class PhRoom_dataset(PhRoom):
                 tuple[OrderedDict[str, torch.Tensor], int]: Room impulse responses and their length.
         """
 
-        rirs_info = self.low_level_info['Rirs']
+        rir_info = self.low_level_info['Rirs']
 
-        rirs_fs = rirs_info['SampleRate_Hz']
-        rirs_length = rirs_info['LengthInSamples']
+        rir_fs = rir_info['SampleRate_Hz']
+        rir_length = rir_info['LengthInSamples']
 
-        if rirs_fs != self.fs:
-            rirs_length = int(self.fs * rirs_length/rirs_fs)
+        if rir_fs != self.fs:
+            rir_length = int(self.fs * rir_length/rir_fs)
 
         ds_dir = ds_dir.rstrip('/')
-        path_root = f"{ds_dir}/data/{self.high_level_info['RoomDirectory']}/{rirs_info['Directory']}"
+        path_root = f"{ds_dir}/data/{self.high_level_info['RoomDirectory']}/{rir_info['Directory']}"
 
-        path = f"{path_root}/{rirs_info['StageAudienceRirs']['Directory']}"
-        stg_to_aud = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_S, n_receivers=self.n_A, fs=rirs_fs, n_samples=rirs_length)
-        path = f"{path_root}/{rirs_info['StageSystemRirs']['Directory']}"
-        stg_to_sys = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_S, n_receivers=self.n_M, fs=rirs_fs, n_samples=rirs_length)
-        path = f"{path_root}/{rirs_info['SystemAudienceRirs']['Directory']}"
-        sys_to_aud = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_L, n_receivers=self.n_A, fs=rirs_fs, n_samples=rirs_length)
-        path = f"{path_root}/{rirs_info['SystemSystemRirs']['Directory']}"
-        sys_to_sys = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_L, n_receivers=self.n_M, fs=rirs_fs, n_samples=rirs_length)
+        path = f"{path_root}/{rir_info['StageAudienceRirs']['Directory']}"
+        stg_to_aud = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_S, n_receivers=self.n_A, fs=rir_fs, n_samples=rir_length)
+        path = f"{path_root}/{rir_info['StageSystemRirs']['Directory']}"
+        stg_to_sys = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_S, n_receivers=self.n_M, fs=rir_fs, n_samples=rir_length)
+        path = f"{path_root}/{rir_info['SystemAudienceRirs']['Directory']}"
+        sys_to_aud = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_L, n_receivers=self.n_A, fs=rir_fs, n_samples=rir_length)
+        path = f"{path_root}/{rir_info['SystemSystemRirs']['Directory']}"
+        sys_to_sys = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_L, n_receivers=self.n_M, fs=rir_fs, n_samples=rir_length)
 
-        rirs = OrderedDict([
-            ('stg_to_aud', stg_to_aud),
-            ('stg_to_sys', stg_to_sys),
-            ('sys_to_aud', sys_to_aud),
-            ('sys_to_sys', sys_to_sys)
-        ])
+        h_SM, h_SA, h_LM, h_LA = self.create_modules(
+            rirs_SM=stg_to_sys,
+            rirs_SA=stg_to_aud,
+            rirs_LM=sys_to_sys,
+            rirs_LA=sys_to_aud,
+            rir_length=rir_length
+        )
 
-        return rirs, rirs_length
+        return h_SM, h_SA, h_LM, h_LA, rir_length
     
     def __load_rir_matrix(self, path: str, n_sources: int, n_receivers: int, fs: int, n_samples: int) -> torch.Tensor:
         r"""
@@ -325,8 +330,7 @@ class PhRoom_rayleighDistributed(PhRoom):
         self.n_M = n_M
         self.n_A = n_A
 
-        self.rirs, self.rir_length = self.__generate_rirs()
-        self.h_SM, self.h_SA, self.h_LM, self.h_LA = self.create_modules()
+        self.h_SM, self.h_SA, self.h_LM, self.h_LA, self.rir_length = self.__generate_rirs()
 
     def __generate_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
         # TODO: generate exponentially-decaying white-Gaussian-noise sequences and zero pad them based on room size simulating transducers positioning
@@ -388,8 +392,7 @@ class PhRoom_ISM(PhRoom):
         self.n_M = n_M
         self.n_A = n_A
 
-        self.rirs, self.rir_length = self.__generate_rirs()
-        self.h_SM, self.h_SA, self.h_LM, self.h_LA = self.create_modules()
+        self.h_SM, self.h_SA, self.h_LM, self.h_LA, self.rir_length = self.__generate_rirs()
 
     def __generate_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
 

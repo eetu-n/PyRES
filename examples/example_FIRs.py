@@ -2,14 +2,12 @@ import sys
 import argparse
 import os
 import time
-import matplotlib.pyplot as plt
 
 import torch
 
 from flamo import system, dsp
 from flamo.optimize.dataset import Dataset, load_dataset
 from flamo.optimize.trainer import Trainer
-from flamo.functional import db2mag, mag2db
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from pyRES.full_system import RES
@@ -24,62 +22,59 @@ torch.manual_seed(130297)
 
 def example_FIRs(args) -> None:
 
-    # --------------------- Parameters ------------------------
+    # -------------------- Initialize RES ---------------------
     # Time-frequency
     samplerate = 48000                 # Sampling frequency
-    nfft = samplerate                  # FFT size
+    nfft = samplerate*3                # FFT size
     alias_decay_db = 0                 # Anti-time-aliasing decay in dB
 
     # Physical room
-    dataset_directory = './AA_dataset' # Path to the dataset
-    rirs_dir = 'LA-lab_1'              # Path to the room impulse responses
+    room_dataset = './AA_dataset'      # Path to the dataset
+    room = 'LA-lab_1'                  # Path to the room impulse responses
     physical_room = PhRoom_dataset(
         fs=samplerate,
-        dataset_directory=dataset_directory,
-        room_name=rirs_dir
+        nfft=nfft,
+        alias_decay_db=alias_decay_db,
+        dataset_directory=room_dataset,
+        room_name=room
     )
-    n_stg, n_mcs, n_lds, n_aud = physical_room.get_ems_rcs_number()
+    _, n_mcs, n_lds, _ = physical_room.get_ems_rcs_number()
 
     # Virtual room
     fir_order = 2**8                   # FIR filter order
     virtual_room = random_FIRs(
-        n_M = n_mcs,
-        n_L = n_lds,
-        nfft = nfft,
-        FIR_order = fir_order,
-        alias_decay_db = alias_decay_db,
-        requires_grad = True
+        n_M=n_mcs,
+        n_L=n_lds,
+        fs=samplerate,
+        nfft=nfft,
+        FIR_order=fir_order,
+        alias_decay_db=alias_decay_db,
+        requires_grad=True
+    )
+
+    # Reverberation Enhancement System
+    res = RES(
+        physical_room = physical_room,
+        virtual_room = virtual_room
     )
 
     # ------------------- Model Definition --------------------
-    model = RES(
-        n_S = n_stg,
-        n_M = n_mcs,
-        n_L = n_lds,
-        n_A = n_aud,
-        fs = samplerate,
-        nfft = nfft,
-        physical_room = physical_room,
-        virtual_room = virtual_room,
-        alias_decay_db = alias_decay_db
+    model = system.Shell(
+        core=res.open_loop(),
+        input_layer=system.Series(
+            dsp.FFT(nfft=nfft),
+            dsp.Transform(lambda x: x.diag_embed())
+        )
     )
-
-    # Apply safe margin
-    gbi_init = model.compute_GBI()
-    model.set_G(db2mag(mag2db(gbi_init) - 2))
     
     # ------------- Performance at initialization -------------
-    # Performance metrics
-    evs_init = model.open_loop_eigenvalues().squeeze(0)
-    ir_init = model.system_simulation().squeeze(0)
-
-    # ---------------- Define optimization --------------------
-    model.set_optimization_routine("open_loop")
+    evs_init = res.open_loop_eigenvalues().squeeze(0)
+    ir_init = res.system_simulation().squeeze(0)
     
     # ----------------- Initialize dataset --------------------
-    dataset_input = torch.zeros(args.batch_size, nfft//2+1, n_mcs)
+    dataset_input = torch.zeros(args.batch_size, samplerate, n_mcs)
     dataset_input[:,0,:] = 1
-    dataset_target = system_equalization_curve(evs_init, samplerate, nfft, f_crossover = 8000)
+    dataset_target = system_equalization_curve(evs=evs_init, fs=samplerate, nfft=nfft, f_c=8000)
     dataset_target = dataset_target.view(1,-1,1).expand(args.batch_size, -1, n_mcs)
 
     dataset = Dataset(
@@ -115,21 +110,17 @@ def example_FIRs(args) -> None:
     trainer.train(train_loader, valid_loader)
 
     # ------------ Performance after optimization ------------
-    # Save the model state
-    # save_model_params(model, filename='AA_parameters_optim')
-
-    # Performance metrics
-    evs_opt = model.open_loop_eigenvalues().squeeze(0)
-    ir_opt = model.system_simulation().squeeze(0)
+    evs_opt = res.open_loop_eigenvalues().squeeze(0)
+    ir_opt = res.system_simulation().squeeze(0)
     
     # ------------------------ Plots -------------------------
+    # TODO: think better about which plots per example
     plot_evs(evs_init, evs_opt, samplerate, nfft, 20, 8000)
     plot_spectrograms(ir_init[:,0], ir_opt[:,0], samplerate, nfft=2**8, noverlap=2**7)
 
+    # ---------------- Save the model parameters -------------
+    res.save_state_to(directory='./model_states/')
 
-    torch.save(model.get_state(), os.path.join('./toolbox/optimization/', time.strftime("%Y-%m-%d_%H.%M.%S.pt")))
-
-    
     return None
 
 

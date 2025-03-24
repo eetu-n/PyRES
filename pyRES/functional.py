@@ -92,7 +92,7 @@ def modal_reverb(
     return torch.div(B, A).sum(dim=-1)
 
 
-def one_pole_absorption_filter(mag_DC, mag_NY):
+def one_pole_filter(mag_DC, mag_NY):
     r"""
     Returns the coefficients of a one-pole absorption filter.
 
@@ -120,7 +120,7 @@ def one_pole_absorption_filter(mag_DC, mag_NY):
     return b, a
 
 
-class FDN_absorption(dsp.parallelFilter):
+class FDN_one_pole_absorption(dsp.parallelFilter):
     r"""
     Parallel absorption filters for the FDN reverberator.
     """
@@ -155,7 +155,7 @@ class FDN_absorption(dsp.parallelFilter):
         Get the frequency response of the absorption filters.
         """
 
-        self.freq_response = lambda param: self.compute_freq_response(param)
+        self.freq_response = lambda param: self.compute_freq_response(param.squeeze())
 
     def compute_freq_response(self, delays: torch.Tensor) -> torch.Tensor:
         r"""
@@ -171,7 +171,7 @@ class FDN_absorption(dsp.parallelFilter):
         absorp_DC = self.rt2absorption(self.t60_DC, self.fs, delays)
         absorp_NY = self.rt2absorption(self.t60_NY, self.fs, delays)
 
-        b, a = one_pole_absorption_filter(absorp_DC, absorp_NY)
+        b, a = one_pole_filter(absorp_DC, absorp_NY)
 
         b_aa = torch.einsum('p, p... -> p...', (self.gamma ** torch.arange(0, 2, 1)), b)
         a_aa = torch.einsum('p, p... -> p...', (self.gamma ** torch.arange(0, 2, 1)), a)
@@ -181,7 +181,7 @@ class FDN_absorption(dsp.parallelFilter):
 
         return torch.div(B, A)
     
-    def rt2absorption(rt60: torch.Tensor, fs: int, delays_len: torch.Tensor) -> torch.Tensor:
+    def rt2absorption(self, rt60: torch.Tensor, fs: int, delay_len: torch.Tensor) -> torch.Tensor:
         r"""
         Convert time in seconds of 60 dB decay to energy decay slope relative to the delay line length.
 
@@ -193,4 +193,4 @@ class FDN_absorption(dsp.parallelFilter):
             **Returns**:
                 - torch.Tensor: The energy decay slope relative to the delay line length.
         """
-        return db2mag(delays_len * rt2slope(rt60, fs))
+        return db2mag(delay_len * rt2slope(rt60, fs))

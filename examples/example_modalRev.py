@@ -1,19 +1,20 @@
+import sys
 import argparse
 import os
 import time
-import matplotlib.pyplot as plt
+
 import torch
 
 from flamo import system, dsp
 from flamo.optimize.dataset import Dataset, load_dataset
 from flamo.optimize.trainer import Trainer
-from flamo.functional import db2mag, mag2db
 
-from full_system import AAES
-from physical_room import PhRoom_dataset
-from virtual_room import phase_canceling_modal_reverb
-from loss_functions import MSE_evs_idxs, colorless_reverb
-from plots import plot_raw_evs, plot_evs, plot_spectrograms
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from pyRES.full_system import RES
+from pyRES.physical_room import PhRoom_dataset
+from pyRES.virtual_room import phase_canceling_modal_reverb
+from pyRES.loss_functions import MSE_evs_idxs, colorless_reverb
+from pyRES.plots import plot_evs, plot_spectrograms
 
 torch.manual_seed(130297)
 
@@ -23,17 +24,20 @@ def example_phase_cancellation(args) -> None:
     # --------------------- Parameters ------------------------
     # Time-frequency
     samplerate = 1000                 # Sampling frequency
-    nfft = samplerate*2                  # FFT size
+    nfft = samplerate*3                  # FFT size
     alias_decay_db = -20                 # Anti-time-aliasing decay in dB
 
     # Physical room
-    rirs_dir = 'LA-lab_1'              # Path to the room impulse responses
-    physical_room = PhRoom_dataset(fs=samplerate, room_name=rirs_dir)
-    srs_rcs = physical_room.get_ems_rcs_number()
-    n_stg = srs_rcs['n_S']             # Number of sources
-    n_mcs = srs_rcs['n_M']             # Number of microphones
-    n_lds = srs_rcs['n_L']             # Number of loudspeakers
-    n_aud = srs_rcs['n_A']             # Number of audience positions
+    room_dataset = './AA_dataset'      # Path to the dataset
+    room = 'LA-lab_1'                  # Path to the room impulse responses
+    physical_room = PhRoom_dataset(
+        fs=samplerate,
+        nfft=nfft,
+        alias_decay_db=alias_decay_db,
+        dataset_directory=room_dataset,
+        room_name=room
+    )
+    _, n_mcs, n_lds, _ = physical_room.get_ems_rcs_number()
 
     # Virtual room
     MR_n_modes = 150                   # Modal reverb number of modes
@@ -53,33 +57,24 @@ def example_phase_cancellation(args) -> None:
         alias_decay_db=alias_decay_db
     )
 
-    # ------------------- Model Definition --------------------
-    model = AAES(
-        n_S = n_stg,
-        n_M = n_mcs,
-        n_L = n_lds,
-        n_A = n_aud,
-        fs = samplerate,
-        nfft = nfft,
+    # Reverberation Enhancement System
+    res = RES(
         physical_room = physical_room,
-        virtual_room = virtual_room,
-        alias_decay_db = alias_decay_db
+        virtual_room = virtual_room
     )
 
-    # Apply safe margin
-    gbi_init = model.compute_GBI()
-    model.set_G(db2mag(mag2db(gbi_init) - 2))
+    # ------------------- Model Definition --------------------
+    model = system.Shell(
+        core=res.open_loop(),
+        input_layer=system.Series(
+            dsp.FFT(nfft=nfft),
+            dsp.Transform(lambda x: x.diag_embed())
+        )
+    )
     
     # ------------- Performance at initialization -------------
-    # Performance metrics
-    evs_init = model.open_loop_eigenvalues().squeeze(0)
-    ir_init = model.system_simulation().squeeze(0)
-
-    # ---------------- Define optimization --------------------
-    model.set_forward_inputLayer(system.Series(
-        dsp.Transform(lambda x: x.diag_embed()),
-        dsp.FFT(nfft)
-        ))
+    evs_init = res.open_loop_eigenvalues().squeeze(0)
+    ir_init = res.system_simulation().squeeze(0)
 
     # ----------------- Initialize dataset --------------------
     dataset_input = torch.zeros(args.batch_size, nfft//2+1, n_mcs)
@@ -123,19 +118,16 @@ def example_phase_cancellation(args) -> None:
     trainer.train(train_loader, valid_loader)
 
     # ------------- Performance after optimization ------------
-    # Save the model state
-    # save_model_params(model, filename='AA_parameters_optim')
-
-    # Performance metrics
-    evs_opt = model.open_loop_eigenvalues().squeeze(0)
-    ir_opt = model.system_simulation().squeeze(0)
+    evs_opt = res.open_loop_eigenvalues().squeeze(0)
+    ir_opt = res.system_simulation().squeeze(0)
     
     # ------------------------- Plots -------------------------
-    plot_raw_evs(evs_init, evs_opt)
+    # TODO: think better about which plots per example
     plot_evs(evs_init, evs_opt, samplerate, nfft, 20, 480)
     plot_spectrograms(ir_init[:,0], ir_opt[:,0], samplerate, nfft=2**4, noverlap=2**3)
 
-    torch.save(model.get_state(), os.path.join('./toolbox/optimization/', time.strftime("%Y-%m-%d_%H.%M.%S.pt")))
+    # ---------------- Save the model parameters -------------
+    res.save_state_to(directory='./model_states/')
 
     return None
 
@@ -149,12 +141,12 @@ if __name__ == '__main__':
     
     #----------------------- Dataset ----------------------
     parser.add_argument('--batch_size', type=int, default=1, help='batch size for training')
-    parser.add_argument('--num', type=int, default=2**6,help = 'dataset size')
+    parser.add_argument('--num', type=int, default=2**7,help = 'dataset size')
     parser.add_argument('--device', type=str, default='cpu', help='device to use for computation')
     parser.add_argument('--split', type=float, default=0.8, help='split ratio for training and validation')
     #---------------------- Training ----------------------
     parser.add_argument('--train_dir', type=str, help='directory to save training results')
-    parser.add_argument('--max_epochs', type=int, default=10, help='maximum number of epochs')
+    parser.add_argument('--max_epochs', type=int, default=20, help='maximum number of epochs')
     parser.add_argument('--patience_delta', type=float, default=0.005, help='Minimum improvement in validation loss to be considered as an improvement')
     #---------------------- Optimizer ---------------------
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')

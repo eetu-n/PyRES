@@ -1,18 +1,31 @@
 # ==================================================================
 # ============================ IMPORTS =============================
 # Miscellanous
-import numpy as np
 import pyfar as pf
+import pyrato as pr
 # Torch
 import torch
 
 
-def reverb_time(rirs: torch.Tensor) -> torch.Tensor:
+def reverb_time(rir: torch.Tensor, fs: int, decay_interval: str='T30') -> torch.Tensor:
+    f"""
+    Computes the reverberation time of an impulse response.
 
-    pf_rirs = pf.Signal(rirs.numpy(), rirs.shape[-1], 1)
-    rt = pf.reverberation_time(pf_rirs, method='t30')
+        **Args**:
+            rir (torch.Tensor): Impulse response.
+            fs (int): Sampling frequency [Hz].
+            decay_interval (str): Decay interval. Defaults to 'T30'.
 
-    return torch.tensor(rt)
+        **Returns**:
+            torch.Tensor: Reverberation time.
+    """
+    
+    rir = rir.squeeze().numpy()
+    pf_rir = pf.Signal(data=rir, sampling_rate=fs, domain='time')
+    edc = pr.energy_decay_curve_truncation(data=pf_rir, time_shift=False)
+    rt = pr.reverberation_time_energy_decay_curve(energy_decay_curve=edc, T=decay_interval)
+
+    return torch.tensor(rt.item())
 
 def peak_to_mean_ratio(array: torch.Tensor, dim: tuple[int]=None) -> torch.Tensor:
     f"""

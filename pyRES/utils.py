@@ -38,13 +38,14 @@ def limit_frequency_points(array: torch.Tensor, fs: int, nfft: int, f_interval: 
         freqs = torch.linspace(0, fs/2, nfft//2+1)
         index_1 = torch.argmin(torch.abs(freqs - torch.tensor(f_interval[0])))
         index_2 = torch.argmin(torch.abs(freqs - torch.tensor(f_interval[1])))
-        return array[index_1:index_2+1]
+        subset = torch.arange(index_1, index_2+1)
     elif f_subset is not None:
         freqs = torch.linspace(0, fs/2, nfft//2+1)
-        index_subset = torch.argmin(torch.abs(freqs - f_subset.unsqueeze(0)), dim=1)
-        return array[index_subset]
+        subset = torch.argmin(torch.abs(freqs - f_subset.unsqueeze(0)), dim=1)
     else:
-        return array
+        subset = torch.arange(0, array.shape[-1])
+    
+    return torch.take_along_dim(array, subset, 0)
     
 
 def system_equalization_curve(
@@ -84,6 +85,7 @@ def system_equalization_curve(
 
             # Right target: moving average of RTFs values
             smooth_window_length = right_interval.shape[0]//6
+            # TODO: Find a way to apply this convolution with torch functions
             smooth_evs = torch.tensor(np.convolve(mean_evs[right_interval], np.ones(smooth_window_length)/smooth_window_length, mode='valid'))
             pre = torch.ones(smooth_window_length//2,) * smooth_evs[0]
             post = torch.ones(smooth_window_length//2,) * smooth_evs[-1]

@@ -1,43 +1,43 @@
+import sys
 import argparse
 import os
 import time
-import matplotlib.pyplot as plt
+
 import torch
 
-from flamo import system, dsp
-from flamo.optimize.dataset import Dataset, load_dataset
-from flamo.optimize.trainer import Trainer
-from flamo.functional import db2mag, mag2db
+from flamo import system
 
-from full_system import RES
-from physical_room import PhRoom_dataset
-from virtual_room import unitary_reverberator
-from toolbox.metrics import system_equalization_curve
-from loss_functions import MSE_evs_mod
-from plots import plot_evs, plot_spectrograms
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from pyRES.full_system import RES
+from pyRES.physical_room import PhRoom_dataset
+from pyRES.virtual_room import unitary_reverberator
+from pyRES.plots import plot_virtualroom_ir
 
 torch.manual_seed(130297)
 
 
-def example_allpass(args) -> None:
+def example_unitary_reverb(args) -> None:
 
     # --------------------- Parameters ------------------------
     # Time-frequency
     samplerate = 48000                 # Sampling frequency
-    nfft = samplerate*4                  # FFT size
-    alias_decay_db = 10                 # Anti-time-aliasing decay in dB
+    nfft = samplerate*3                # FFT size
+    alias_decay_db = 0                 # Anti-time-aliasing decay in dB
 
     # Physical room
-    rirs_dir = 'LA-lab_1'              # Path to the room impulse responses
+    room_dataset = './AA_dataset'      # Path to the dataset
+    room = 'LA-lab_1'                  # Path to the room impulse responses
     physical_room = PhRoom_dataset(
         fs=samplerate,
-        dataset_directory="./AA_Dataset/",
-        room_name=rirs_dir
+        nfft=nfft,
+        alias_decay_db=alias_decay_db,
+        dataset_directory=room_dataset,
+        room_name=room
     )
-    n_stg, n_mcs, n_lds, n_aud = physical_room.get_ems_rcs_number()
+    _, n_mcs, n_lds, _ = physical_room.get_ems_rcs_number()
 
     # Virtual room
-    t60 = 0.9                       # Unitary allpass reverb reverberation time
+    t60 = 1.0                          # Unitary allpass reverb reverberation time
     virtual_room = unitary_reverberator(
         n_M = n_mcs,
         n_L = n_lds,
@@ -47,33 +47,29 @@ def example_allpass(args) -> None:
         alias_decay_db = alias_decay_db,
     )
 
-    # ------------------- Model Definition --------------------
-    model = RES(
-        n_S = n_stg,
-        n_M = n_mcs,
-        n_L = n_lds,
-        n_A = n_aud,
-        fs = samplerate,
-        nfft = nfft,
+    # Reverberation Enhancement System
+    res = RES(
         physical_room = physical_room,
-        virtual_room = virtual_room,
-        alias_decay_db = alias_decay_db
+        virtual_room = virtual_room
     )
 
-    # Apply safe margin
-    gbi_init = model.compute_GBI()
-    model.set_G(db2mag(mag2db(gbi_init) - 2))
-    
     # ------------- Performance at initialization -------------
-    # Performance metrics
-    evs_init = model.open_loop_eigenvalues().squeeze(0)
-    ir_init = model.system_simulation().squeeze(0)
-    
-    # ------------------------ Plots --------------------------
-    # get VR irs and tfs and plot them
+    # evs_init = res.open_loop_eigenvalues()
+    # ir_init = res.system_simulation()
 
-    # --------------------- Save state ------------------------
-    torch.save(model.get_state(), os.path.join('./toolbox/optimization/', time.strftime("%Y-%m-%d_%H.%M.%S.pt")))
+    # ------------ Performance after optimization ------------
+    # evs_opt = res.open_loop_eigenvalues()
+    # ir_opt = res.system_simulation()
+    
+    # ------------------------ Plots -------------------------
+    test = system.Shell(core=virtual_room)
+    irs = test.get_time_response(identity=True).squeeze()
+    plot_virtualroom_ir(ir=irs[:,0,0], fs=samplerate, nfft=nfft)
+    plot_virtualroom_ir(ir=irs[:,2,1], fs=samplerate, nfft=nfft)
+    plot_virtualroom_ir(ir=irs[:,1,3], fs=samplerate, nfft=nfft)
+
+    # ---------------- Save the model parameters -------------
+    res.save_state_to(directory='./model_states/')
 
     return None
 
@@ -112,4 +108,4 @@ if __name__ == '__main__':
         f.write('\n'.join([str(k) + ',' + str(v) for k, v in sorted(vars(args).items(), key=lambda x: x[0])]))
 
     # Run examples
-    example_allpass(args)
+    example_unitary_reverb(args)

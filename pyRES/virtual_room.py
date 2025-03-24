@@ -4,10 +4,10 @@
 import torch
 # Flamo
 from flamo import dsp, system
-from flamo.functional import db2mag
+from flamo.functional import db2mag, skew_matrix
 from flamo.auxiliary.reverb import rt2slope
 # PyRES
-from pyRES.functional import modal_reverb, FDN_absorption
+from pyRES.functional import modal_reverb, FDN_one_pole_absorption
 
 
 # ==================================================================
@@ -29,13 +29,36 @@ class VrRoom(object):
         Initializes the virtual room.
         """
 
-        super().__init__()
+        object.__init__(self)
         
         self.n_M = n_M
         self.n_L = n_L
         self.fs = fs
         self.nfft = nfft
         self.alias_decay_db = alias_decay_db
+
+    def coupling(self, inputs: int, outputs: int) -> dsp.Gain:
+        r"""
+        Initializes the coupling matrix.
+        It is used to connect a square dsp to a system with n_L ~= n_M.
+
+            **Args**:
+                - inputs (int): Number of input channels.
+                - outputs (int): Number of output channels.
+
+            **Returns**:
+                dsp.Gain: Coupling matrix.
+        """
+
+        module = dsp.Gain(
+            size = (outputs, inputs),
+            nfft = self.nfft,
+            requires_grad = False,
+            alias_decay_db = self.alias_decay_db,
+        )
+        module.assign_value(torch.eye(outputs, inputs))
+
+        return module
 
 
 # ==================================================================
@@ -140,7 +163,7 @@ class unitary_mixing_matrix(VrRoom, system.Series):
 
         max_n = torch.max(torch.tensor([self.n_M, self.n_L]))
 
-        coupling_1 = self.__coupling(
+        coupling_1 = self.coupling(
             inputs = self.n_M,
             outputs = max_n
         )
@@ -152,35 +175,16 @@ class unitary_mixing_matrix(VrRoom, system.Series):
             requires_grad = False,
             alias_decay_db = self.alias_decay_db,
         )
+        M = unitary.param.clone().detach()
+        O = torch.matrix_exp(skew_matrix(M))
+        unitary.assign_value(O)
 
-        coupling_2 = self.__coupling(
+        coupling_2 = self.coupling(
             inputs = max_n,
             outputs = self.n_L
         )
 
         return coupling_1, unitary, coupling_2
-    
-    def __coupling(self, inputs: int, outputs: int) -> dsp.Gain:
-        r"""
-        Initializes the coupling matrix.
-
-            **Args**:
-                - inputs (int): Number of input channels.
-                - outputs (int): Number of output channels.
-
-            **Returns**:
-                dsp.Gain: Coupling matrix.
-        """
-
-        module = dsp.Gain(
-            size = (outputs, inputs),
-            nfft = self.nfft,
-            requires_grad = False,
-            alias_decay_db = self.alias_decay_db,
-        )
-        module.assign_value(torch.eye(outputs, inputs))
-
-        return module
 
 
 # ==================================================================
@@ -273,12 +277,6 @@ class phase_canceling_modal_reverb(VrRoom, dsp.DSP):
         )
 
         self.n_modes = n_modes
-        self.resonances = torch.linspace(low_f_lim, high_f_lim, n_modes).view(
-            -1, *(1,)*(len(self.param.shape[:-1]))).permute(
-                [1,2,3,0]).expand(
-                    *self.param.shape)
-        self.gains = torch.ones_like(self.param)
-        self.t60 = t60 * torch.ones_like(self.param)
 
         dsp.DSP.__init__(
             self,
@@ -287,6 +285,13 @@ class phase_canceling_modal_reverb(VrRoom, dsp.DSP):
             requires_grad=requires_grad,
             alias_decay_db=self.alias_decay_db
         )
+
+        self.resonances = torch.linspace(low_f_lim, high_f_lim, n_modes).view(
+            -1, *(1,)*(len(self.param.shape[:-1]))).permute(
+                [1,2,3,0]).expand(
+                    *self.param.shape)
+        self.gains = torch.ones_like(self.param)
+        self.t60 = t60 * torch.ones_like(self.param)
 
         self.initialize_class()
 
@@ -444,7 +449,7 @@ class FDN(VrRoom, system.Series):
 
         max_n = torch.max(torch.tensor([n_M, n_L]))
 
-        input_gains = self.__gains(
+        input_gains = self.coupling(
             inputs = self.n_M,
             outputs = max_n,
         )
@@ -453,7 +458,7 @@ class FDN(VrRoom, system.Series):
             channels = max_n,
         )
 
-        output_gains = self.__gains(
+        output_gains = self.coupling(
             inputs = max_n,
             outputs = self.n_L,
 
@@ -465,30 +470,6 @@ class FDN(VrRoom, system.Series):
             recursion,
             output_gains
         )
-
-    def __gains(self, inputs: int, outputs: int) -> dsp.Gain:
-        r"""
-        Initializes a unitary parallel gain module.
-
-            **Args**:
-                - inputs (int): Number of input channels.
-                - outputs (int): Number of output channels.
-                - nfft (int): FFT size.
-                - alias_decay_db (float): Anti-time-aliasing decay in dB.
-
-            **Returns**:
-                dsp.Gain: Unitary parallel gain module.
-        """
-
-        module = dsp.Gain(
-            size = (outputs, inputs),
-            nfft = self.nfft,
-            requires_grad = False,
-            alias_decay_db = self.alias_decay_db,
-        )
-        module.assign_value(torch.eye(outputs, inputs))
-
-        return module
     
     def __recursion(self, channels: int) -> system.Recursion:
         r"""
@@ -511,7 +492,8 @@ class FDN(VrRoom, system.Series):
             requires_grad = False,
             alias_decay_db = self.alias_decay_db,
         )
-        delay_lengths = delays.s2sample(delays.param)
+        delay_lengths = torch.randint(700,3000,(channels,)).float()
+        delays.assign_value(delays.sample2s(delay_lengths))
 
         feedback_matrix = dsp.Matrix(
             size = (channels, channels),
@@ -520,8 +502,11 @@ class FDN(VrRoom, system.Series):
             requires_grad = False,
             alias_decay_db = self.alias_decay_db,
         )
+        M = feedback_matrix.param.clone().detach()
+        O = torch.matrix_exp(skew_matrix(M))
+        feedback_matrix.assign_value(O)
 
-        attenuation = FDN_absorption(
+        attenuation = FDN_one_pole_absorption(
             channels = channels,
             fs = self.fs,
             nfft = self.nfft,
@@ -601,12 +586,12 @@ class unitary_reverberator(VrRoom, system.Series):
         recursion = self.__recursion(channels=max_n, delays=D, mixing_matrix=C, gains=G)
         feedforward = self.__feedforward(channels=max_n, delay_lines=delay_lengths, mixing_matrix=C, gamma=gamma)
 
-        coupling_in = self.__coupling(self, inputs=max_n, outputs=self.n_L)
-        coupling_out = self.__coupling(self, inputs=self.n_M, outputs=max_n)
+        coupling_in = self.coupling(inputs=self.n_M, outputs=max_n)
+        coupling_out = self.coupling(inputs=max_n, outputs=self.n_L)
 
         return coupling_in, recursion, feedforward, coupling_out
     
-    def __delays(self, channels: int, nfft: int, alias_decay_db: int) -> tuple[dsp.parallelDelay, torch.Tensor]:
+    def __delays(self, channels: int) -> tuple[dsp.parallelDelay, torch.Tensor]:
         r"""
         Initialize the delays module of the unitary reverberator.
 
@@ -623,13 +608,13 @@ class unitary_reverberator(VrRoom, system.Series):
         module = dsp.parallelDelay(
             size = (channels,),
             max_len = 2000,
-            nfft = nfft,
+            nfft = self.nfft,
             isint = True,
             requires_grad = False,
-            alias_decay_db = alias_decay_db,
+            alias_decay_db = self.alias_decay_db,
         )
-
-        delay_lengths = module.s2sample(module.param.clone().detach())
+        delay_lengths = torch.randint(700,3000,(channels,)).float()
+        module.assign_value(module.sample2s(delay_lengths))
 
         return module, delay_lengths
     
@@ -651,6 +636,9 @@ class unitary_reverberator(VrRoom, system.Series):
             requires_grad = False,
             alias_decay_db = self.alias_decay_db,
         )
+        M = module.param.clone().detach()
+        O = torch.matrix_exp(skew_matrix(M))
+        module.assign_value(O)
 
         return module
     
@@ -711,8 +699,7 @@ class unitary_reverberator(VrRoom, system.Series):
 
             **Args**:
                 - channels (int): Number of channels.
-                - order (int): Order of the FIR filter.
-                - delays (dsp.parallelDelay): Delays module.
+                - delay_lines (torch.Tensor): Delay lengths [samples].
                 - mixing_matrix (dsp.Matrix): Mixing matrix module.
                 - gamma (torch.Tensor): Gain value.
 
@@ -720,44 +707,25 @@ class unitary_reverberator(VrRoom, system.Series):
                 dsp.Filter: Feedforward part of the reverberator.
         """
 
-        order = delay_lines.max().int(), 
+        order = torch.max(delay_lines).int()
 
         feedforward = dsp.Filter(
-            size = (order, channels, channels),
-            nfft = self.nfft,
-            requires_grad = False,
-            alias_decay_db = self.alias_decay_db,
+            size=(order, channels, channels),
+            nfft=self.nfft,
+            requires_grad=False,
+            alias_decay_db=self.alias_decay_db,
         )
 
         first_tap = gamma * torch.eye(channels)
         second_tap = mixing_matrix.param.clone().detach()
-        second_tap_idxs = delay_lines.unsqueeze(1).expand(-1, channels).long()
+        second_tap_idxs = delay_lines.unsqueeze(0).expand(channels, -1).long()
         new_params = torch.zeros_like(feedforward.param)
-        new_params[0, :, :] = first_tap
-        new_params[second_tap_idxs - 1, :, :] = second_tap
+        for i in range(channels):
+            for j in range(channels):
+                new_params[0, i, j] = first_tap[i, j]
+                new_params[second_tap_idxs[i, j]-1, i, j] = second_tap[i, j]
 
         feedforward.assign_value(new_params)
 
         return feedforward
     
-    def __coupling(self, inputs: int, outputs: int) -> dsp.Gain:
-        r"""
-        Initializes the coupling matrix.
-
-            **Args**:
-                - inputs (int): Number of input channels.
-                - outputs (int): Number of output channels.
-
-            **Returns**:
-                dsp.Gain: Coupling matrix
-        """
-
-        module = dsp.Gain(
-            size = (outputs, inputs),
-            nfft = self.nfft,
-            requires_grad = False,
-            alias_decay_db = self.alias_decay_db,
-        )
-        module.assign_value(torch.eye(outputs, inputs))
-
-        return module
