@@ -9,6 +9,8 @@ import torch.nn as nn
 import torchaudio
 # Flamo
 from flamo import dsp
+# pyRES
+from pyRES.metrics import energy_coupling
 
 
 # ==================================================================
@@ -97,10 +99,10 @@ class PhRoom(object):
                 OrderedDict: The system room impulse responses.
         """
         RIRs = OrderedDict()
-        RIRs.update({'H_SM': self.get_stg_to_mcs().param.clone().detach()})
-        RIRs.update({'H_SA': self.get_stg_to_aud().param.clone().detach()})
-        RIRs.update({'H_LM': self.get_lds_to_mcs().param.clone().detach()})
-        RIRs.update({'H_LA': self.get_lds_to_aud().param.clone().detach()})
+        RIRs.update({'h_SM': self.get_stg_to_mcs().param.clone().detach()})
+        RIRs.update({'h_SA': self.get_stg_to_aud().param.clone().detach()})
+        RIRs.update({'h_LM': self.get_lds_to_mcs().param.clone().detach()})
+        RIRs.update({'h_LA': self.get_lds_to_aud().param.clone().detach()})
         return RIRs
     
     def create_modules(self, rirs_SM: torch.Tensor, rirs_SA: torch.Tensor, rirs_LM: torch.Tensor, rirs_LA: torch.Tensor, rir_length: int) -> tuple[dsp.Filter, dsp.Filter, dsp.Filter, dsp.Filter]:
@@ -275,7 +277,10 @@ class PhRoom_dataset(PhRoom):
                     w = torchaudio.transforms.Resample(fs, self.fs)(w)
                 matrix[:,i,j] = w.permute(1,0).squeeze()
 
-        # TODO: apply here normalization
+        # Energy normalization
+        ec = energy_coupling(rir=matrix, fs=self.fs, decay_interval='T30')
+        norm_factor = torch.max(torch.tensor([self.n_L, self.n_M])) * torch.sqrt(torch.median(ec))
+        matrix = matrix/norm_factor
 
         return matrix
     

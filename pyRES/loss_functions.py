@@ -188,7 +188,8 @@ class MSE_evs_idxs(nn.Module):
         freq_axis = torch.linspace(0, samplerate/2, freq_points)
         freqs = freqs.repeat(freq_points, 1)
         freq_axis = freq_axis.unsqueeze(1).repeat(1, freqs.shape[1])
-        self.idxs = torch.argmin(torch.abs(freq_axis - freqs), dim=0)
+        idxs = torch.argmin(torch.abs(freq_axis - freqs), dim=0)
+        self.idxs = torch.cat((idxs-2, idxs-1, idxs, idxs+1, idxs+2), dim=0)
         self.freq_points = len(self.idxs)
         self.iter_num = iter_num
 
@@ -216,7 +217,8 @@ class colorless_reverb(mse_loss):
         freq_axis = torch.linspace(0, samplerate/2, freq_points)
         freqs = freqs.repeat(freq_points, 1)
         freq_axis = freq_axis.unsqueeze(1).repeat(1, freqs.shape[1])
-        self.idxs = torch.argmin(torch.abs(freq_axis - freqs), dim=0)
+        idxs = torch.argmin(torch.abs(freq_axis - freqs), dim=0)
+        self.idxs = torch.cat((idxs-2, idxs-1, idxs, idxs+1, idxs+2), dim=0)
         self.freq_points = len(self.idxs)
 
     def forward(self, y_pred, y_target, model):

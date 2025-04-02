@@ -449,7 +449,7 @@ class FDN(VrRoom, system.Series):
 
         max_n = torch.max(torch.tensor([n_M, n_L]))
 
-        input_gains = self.coupling(
+        input_gains = self.__gains(
             inputs = self.n_M,
             outputs = max_n,
         )
@@ -458,7 +458,7 @@ class FDN(VrRoom, system.Series):
             channels = max_n,
         )
 
-        output_gains = self.coupling(
+        output_gains = self.__gains(
             inputs = max_n,
             outputs = self.n_L,
 
@@ -470,6 +470,27 @@ class FDN(VrRoom, system.Series):
             recursion,
             output_gains
         )
+
+    def __gains(self, inputs: int, outputs: int) -> dsp.parallelGain:
+        r"""
+        Initializes the gains module of the unitary reverberator.
+
+            **Args**:
+                - channels (int): Number of channels.
+                - g (torch.Tensor): Gain value.
+
+            **Returns**:
+                dsp.Gain: Gains module.
+        """
+
+        module = dsp.Gain(
+            size = (outputs,inputs),
+            nfft = self.nfft,
+            requires_grad = False,
+            alias_decay_db = self.alias_decay_db,
+        )
+
+        return module
     
     def __recursion(self, channels: int) -> system.Recursion:
         r"""
