@@ -13,6 +13,7 @@ from pyRES.full_system import RES
 from pyRES.physical_room import PhRoom_dataset
 from pyRES.virtual_room import *
 from pyRES.plots import *
+from pyRES.utils import *
 
 torch.manual_seed(130297)
 
@@ -88,7 +89,7 @@ def dafx_figures_PhRoom(args) -> None:
     alias_decay_db = 0                 # Anti-time-aliasing decay in dB
 
     # Physical room
-    room_dataset = './AA_dataset'      # Path to the dataset
+    room_dataset = './dataRES'      # Path to the dataset
     room = 'Otala'                  # Path to the room impulse responses
     physical_room = PhRoom_dataset(
         fs=samplerate,
@@ -97,7 +98,7 @@ def dafx_figures_PhRoom(args) -> None:
         dataset_directory=room_dataset,
         room_name=room
     )
-    # plot_room_setup(physical_room)
+    plot_room_setup(physical_room)
 
     ph_rirs = physical_room.get_rirs()
     plot_coupling_pro_version(rirs=ph_rirs, fs=samplerate)
@@ -106,7 +107,7 @@ def dafx_figures_PhRoom(args) -> None:
     return None
 
 
-def dafx_figures_VhRoom(args) -> None:
+def dafx_figures_VrRoom(args) -> None:
 
     # --------------------- Parameters ------------------------
     # Time-frequency
@@ -146,9 +147,8 @@ def dafx_big_figure(args) -> None:
     idx1 = int(nfft/samplerate*20)
     idx2 = int(nfft/samplerate*8000)
 
-
     # Dataset directory
-    room_dataset = './zenodo_dataset'      # Path to the dataset
+    room_dataset = './dataRES'      # Path to the dataset
 
     # Physical room 1
     room1 = 'Otala'                  # Path to the room impulse responses
@@ -192,7 +192,7 @@ def dafx_big_figure(args) -> None:
     evs51 = mag2db(res51.open_loop_eigenvalues())[2*50:2*450,:]
 
     # Physical room 2
-    room2 = 'LA-lab_1'                  # Path to the room impulse responses
+    room2 = 'ImmersiveLab_T1'                  # Path to the room impulse responses
     physical_room2 = PhRoom_dataset(
         fs=samplerate,
         nfft=nfft,
@@ -283,13 +283,13 @@ def dafx_big_figure(args) -> None:
             2**11, 2**11, 2**11,
             2**11, 2**11, 2**11,
             2**11, 2**11, 2**11,
-            2**4, 2**4, 2**4]
+            2**6, 2**6, 2**6]
     
     noverlap = [2**10, 2**10, 2**10,
                 2**10, 2**10, 2**10,
                 2**10, 2**10, 2**10,
                 2**10, 2**10, 2**10,
-                2**3, 2**3, 2**3]
+                2**5, 2**5, 2**5]
     
     tensor_pairs = [(evs11, aur11),(evs12, aur12),(evs13, aur13),
                     (evs21, aur21),(evs22, aur22),(evs23, aur23),
@@ -304,9 +304,9 @@ def dafx_big_figure(args) -> None:
         tensor_pairs=tensor_pairs,
         rows=5,
         cols=3,
-        row_labels=['Mixing matrix', 'FIRs', 'FDN', 'Unitary reverb', 'Modal reverb'],
-        col_labels=['Otala', 'LA-lab', 'GLiveLab-Tampere'],
-        figsize=(8,10),
+        row_labels=['Unitary mixing matrix', 'FIRs', 'FDN', 'Unitary reverb', 'Modal reverb'],
+        col_labels=['Otala', 'ImmersiveLab T1', 'GLiveLab Tampere'],
+        figsize=(8,9),
         cmap='magma'
     )
 
@@ -321,8 +321,8 @@ def dafx_figures_dafx24(args) -> None:
     alias_decay_db = 0                 # Anti-time-aliasing decay in dB
 
     # Physical room
-    room_dataset = './zenodo_dataset'      # Path to the dataset
-    room = 'LA-lab_1'                  # Path to the room impulse responses
+    room_dataset = './dataRES'      # Path to the dataset
+    room = 'Otala'                  # Path to the room impulse responses
     physical_room = PhRoom_dataset(
         fs=samplerate,
         nfft=nfft,
@@ -349,19 +349,29 @@ def dafx_figures_dafx24(args) -> None:
         virtual_room=virtual_room
     )
     gbi = mag2db(res.compute_GBI())
-    res.set_G(db2mag(gbi - 1))
+    res.set_G(db2mag(gbi-1))
 
     # ------------------- Initialization ----------------------
     evs_init = res.open_loop_eigenvalues()
     irs_init = res.system_simulation()
 
     # -------------------- Optimization -----------------------
-    virtual_room.load_state_dict(torch.load('./model_states/FIRs_LA.pt'))
+    virtual_room.load_state_dict(torch.load('./model_states/FIRs_Otala.pt'))
+    # gbi = mag2db(res.compute_GBI())
+    # res.set_G(db2mag(gbi-2))
     evs_opt = res.open_loop_eigenvalues()
     irs_opt = res.system_simulation()
 
-    plot_evs(evs_init=evs_init, evs_opt=evs_opt, fs=samplerate, nfft=nfft, lower_f_lim=20, higher_f_lim=8000)
-    plot_spectrograms(y_1=irs_init.squeeze()[:,0], y_2=irs_opt.squeeze()[:,0], fs=samplerate, nfft = 2**9, noverlap=2**8)
+    # plot_evs(evs_init=evs_init, evs_opt=evs_opt, fs=samplerate, nfft=nfft, lower_f_lim=20, higher_f_lim=8000)
+    # plot_spectrograms(y_1=irs_init.squeeze()[:,0], y_2=irs_opt.squeeze()[:,0], fs=samplerate, nfft = 2**9, noverlap=2**8)
+    curve = system_equalization_curve(
+        evs=evs_init,
+        fs=samplerate,
+        nfft=nfft,
+        f_c=9000
+    )
+    plot_eq_curve(curve, samplerate, nfft)
+    plot_combined_figure(samplerate, nfft, evs_init, evs_opt, [20,10000], irs_init.squeeze(), irs_opt.squeeze(), [20,20000], cmap='magma')
 
     return None
 
@@ -374,7 +384,7 @@ def dafx_figures_jaes24(args):
     alias_decay_db = -20                 # Anti-time-aliasing decay in dB
 
     # Physical room
-    room_dataset = './AA_dataset'      # Path to the dataset
+    room_dataset = './dataRES'      # Path to the dataset
     room = 'Otala'                  # Path to the room impulse responses
     physical_room = PhRoom_dataset(
         fs=samplerate,
@@ -411,19 +421,21 @@ def dafx_figures_jaes24(args):
         virtual_room=virtual_room
     )
     gbi = mag2db(res.compute_GBI())
-    res.set_G(db2mag(gbi - 1))
+    res.set_G(db2mag(gbi - 3))
 
     # ------------------- Initialization ----------------------
     evs_init = res.open_loop_eigenvalues()
+    irs_init = res.system_simulation()
 
     # -------------------- Optimization -----------------------
     virtual_room.load_state_dict(torch.load('./model_states/modalReverb_Otala.pt'))
+    gbi = mag2db(res.compute_GBI())
+    res.set_G(db2mag(gbi - 3))
     evs_opt = res.open_loop_eigenvalues()
-    opt = system.Shell(core=virtual_room)
-    tfs_opt = opt.get_freq_response(identity=True).squeeze()
+    irs_opt = res.system_simulation()
 
-    plot_evs(evs_init=evs_init, evs_opt=evs_opt, fs=samplerate, nfft=nfft, lower_f_lim=MR_f_low-10, higher_f_lim=MR_f_high+10)
-    plot_evs(tfs_init.view(tfs_init.shape[0], -1), tfs_opt.view(tfs_opt.shape[0], -1), fs=samplerate, nfft=nfft, lower_f_lim=MR_f_low-10, higher_f_lim=MR_f_high+10)
+    # plot_evs(evs_init=evs_init, evs_opt=evs_opt, fs=samplerate, nfft=nfft, lower_f_lim=MR_f_low-10, higher_f_lim=MR_f_high+10)
+    plot_combined_figure(samplerate, nfft, evs_init, evs_opt, [30,470], irs_init.squeeze(), irs_opt.squeeze(), [20,500], cmap='magma')
 
     return None
 
