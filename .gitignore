@@ -164,3 +164,4 @@ cython_debug/
 /training_output
 /model_states
 /dataRES
+.DS_Store
