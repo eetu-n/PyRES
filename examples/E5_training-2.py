@@ -142,7 +142,7 @@ def train_virtual_room(args) -> None:
 
 if __name__ == '__main__':
 
-    # Define system parameters and pipeline hyperparameters
+    # Define training pipeline hyperparameters
     parser = argparse.ArgumentParser()
     
     #----------------------- Dataset ----------------------
@@ -159,7 +159,7 @@ if __name__ == '__main__':
     #----------------- Parse the arguments ----------------
     args = parser.parse_args()
 
-    # make output directory
+    # make training output directory
     if args.train_dir is not None:
         if not os.path.isdir(args.train_dir):
             os.makedirs(args.train_dir)
@@ -171,5 +171,5 @@ if __name__ == '__main__':
     with open(os.path.join(args.train_dir, 'args.txt'), 'w') as f:
         f.write('\n'.join([str(k) + ',' + str(v) for k, v in sorted(vars(args).items(), key=lambda x: x[0])]))
 
-    # Run examples
+    # Run script
     train_virtual_room(args)
