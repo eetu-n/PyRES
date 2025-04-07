@@ -21,6 +21,24 @@ from PyRES.utils import system_equalization_curve
 from PyRES.plots import plot_evs, plot_spectrograms
 
 ###########################################################################################
+# In this example, we train a virtual room to equalize the RES.
+# The virtual room is a mixing matrix of finite-impulse-response (FIR) filters.
+# For more information about the classes Dataset and Trainer, please refer to the FLAMO
+# documentation.
+# The training pipeline is as follows:
+# 1. Initialize the physical room and the virtual room.
+# 2. Initialize the RES with the physical and virtual rooms.
+# 3. Define the model as the open loop of the RES.
+# 4. Initialize the dataset with the input and target signals.
+#    The input signal is a batch of unit impulses.
+#    The target signal is the equalization curve of the RES.
+# 5. Initialize the trainer with the model and the dataset.
+# 6. Define the loss function as the mean squared error between the target and the eigenvalues
+#    of the RES open loop.
+# 7. Train the model with the trainer.
+# 8. Plot the eigenvalues and the spectrograms of the input and output signals.
+# 9. Save the model parameters.
+###########################################################################################
 
 torch.manual_seed(130297)
 
