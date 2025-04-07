@@ -1,2 +1,2 @@
 # PyRES
-### Python library for development and simulation of Room-acoustics Enhancement Systems
+### Python library for development and simulation of Reverberation Enhancement Systems
