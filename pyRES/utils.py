@@ -2,19 +2,21 @@
 # ============================ IMPORTS =============================
 # Miscellanous
 import numpy as np
-# Torch
+# PyTorch
 import torch
 
 
-def next_power_of_2(x): 
+# ==================================================================
+
+def next_power_of_2(x: float) -> int: 
     r"""
     Returns the next power of 2 of the input number.
 
         **Args**:
-            x (int): Input number.
+            - x (float): Input number.
 
         **Returns**:
-            int: Next power of 2.
+            - int: Next power of 2.
     """
     return 1 if x == 0 else 2**(x - 1).bit_length()
 
@@ -23,11 +25,11 @@ def expand_to_dimension(array: torch.Tensor, dim: int) -> torch.Tensor:
     Expands the input array to a given dimension.
 
         **Args**:
-            array (torch.Tensor): Input array.
-            dim (int): Dimension to expand to.
+            - array (torch.Tensor): Input array.
+            - dim (int): Dimension to expand to.
 
         **Returns**:
-            torch.Tensor: Expanded array.
+            - torch.Tensor: Expanded array.
     """
     while len(array.shape) < dim:
         array = array.unsqueeze(-1)
@@ -39,14 +41,14 @@ def limit_frequency_points(array: torch.Tensor, fs: int, nfft: int, f_interval: 
     Reduces the input array to a given frequency interval or to a given frequency subset.
 
         **Args**:
-            array (torch.Tensor): Input array.
-            fs (int): Sampling frequency [Hz].
-            nfft (int): Number of frequency bins.
-            f_interval (tuple[float, float], optional): Frequency interval [Hz]. Defaults to None.
-            f_subset (torch.Tensor, optional): Frequency points [Hz]. Defaults to None.
+            - array (torch.Tensor): Input array.
+            - fs (int): Sampling frequency [Hz].
+            - nfft (int): FFT size.
+            - f_interval (tuple[float, float], optional): Frequency interval [Hz]. Defaults to None.
+            - f_subset (torch.Tensor, optional): Frequency points [Hz]. Defaults to None.
 
         **Returns**:
-            torch.Tensor: reduced array.
+            - torch.Tensor: reduced array.
     """
     
     if f_interval is not None:
@@ -70,16 +72,20 @@ def system_equalization_curve(
         f_c: float=None
     ) -> torch.Tensor:
         f"""
-        Computes the system equalization curve: flat response below the crossover frequency and moving average of the RTFs above the crossover frequency.
+        Computes the system equalization curve.
+        If a crossover frequency is provided, the curve is divided into two parts:
+        a flat response below the crossover frequency and a moving average of the mean value above the crossover frequency.
+        If no crossover frequency is provided, the curve is a horizontal line at the mean value.
+        The mean is computed first from the absolute values of the eigenvalues across the channels, and then across frequencies.
         
             **Args**:
-                evs (torch.Tensor): Open loop eigenvalues. shape = (samples, n_M).
-                fs (int): Sampling frequency [Hz].
-                nfft (int): Number of frequency bins.
-                f_c (float, optional): Crossover frequency [Hz]. Defaults to None.
+                - evs (torch.Tensor): Open-loop eigenvalues [nfft, n_M].
+                - fs (int): Sampling frequency [Hz].
+                - nfft (int): FFT size.
+                - f_c (float, optional): Crossover frequency [Hz]. Defaults to None.
             
             **Returns**:
-                torch.Tensor: The system equalization curve.
+                - torch.Tensor: The system equalization curve.
         """
         
         # frequency samples

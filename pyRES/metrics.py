@@ -3,25 +3,27 @@
 # Miscellanous
 import pyfar as pf
 import pyrato as pr
-# Torch
+# PyTorch
 import torch
-# Flamo
+# FLAMO
 from flamo.functional import find_onset
-# pyRES
-from pyRES.utils import expand_to_dimension
+# PyRES
+from PyRES.utils import expand_to_dimension
 
+
+# ==================================================================
 
 def reverb_time(rir: torch.Tensor, fs: int, decay_interval: str='T30') -> torch.Tensor:
     f"""
-    Computes the reverberation time of an impulse response.
+    Computes the reverberation time of a room impulse response.
 
         **Args**:
-            rir (torch.Tensor): Impulse response.
-            fs (int): Sampling frequency [Hz].
-            decay_interval (str): Decay interval. Defaults to 'T30'.
+            - rir (torch.Tensor): Room impulse response.
+            - fs (int): Sampling frequency [Hz].
+            - decay_interval (str): Decay interval. Defaults to 'T30'.
 
         **Returns**:
-            torch.Tensor: Reverberation time.
+            - torch.Tensor: Reverberation time [s].
     """
 
     rir = rir.squeeze().numpy()
@@ -36,12 +38,12 @@ def energy_coupling(rir: torch.Tensor, fs: int, decay_interval: str='T30') -> to
     Computes the energy coupling of an impulse response.
 
         **Args**:
-            rir (torch.Tensor): Impulse response.
-            fs (int): Sampling frequency [Hz].
-            decay_interval (str): Decay interval. Defaults to 'T30'.
+            - rir (torch.Tensor): Room impulse response.
+            - fs (int): Sampling frequency [Hz].
+            - decay_interval (str): Decay interval. Defaults to 'T30'.
 
         **Returns**:
-            torch.Tensor: Energy coupling.
+            - torch.Tensor: Energy coupling.
     """
 
     rir = expand_to_dimension(rir, 3)
@@ -60,15 +62,15 @@ def energy_coupling(rir: torch.Tensor, fs: int, decay_interval: str='T30') -> to
 
 def direct_to_reverb_ratio(rir: torch.Tensor, fs: int, decay_interval: str='T30') -> torch.Tensor:
     f"""
-    Computes the direct to reverb ratio of an impulse response.
+    Computes the direct-to-reverberant ratio of an impulse response.
 
         **Args**:
-            rir (torch.Tensor): Impulse response.
-            fs (int): Sampling frequency [Hz].
-            decay_interval (str): Decay interval. Defaults to 'T30'.
+            - rir (torch.Tensor): Room impulse response.
+            - fs (int): Sampling frequency [Hz].
+            - decay_interval (str): Decay interval. Defaults to 'T30'.
 
         **Returns**:
-            torch.Tensor: Direct to reverb ratio.
+            - torch.Tensor: Direct-to-reverberant ratio.
     """
 
     rir = expand_to_dimension(rir, 3)
@@ -87,60 +89,60 @@ def direct_to_reverb_ratio(rir: torch.Tensor, fs: int, decay_interval: str='T30'
 
     return drr
 
-def peak_to_mean_ratio(array: torch.Tensor, dim: tuple[int]=None) -> torch.Tensor:
-    f"""
-    Computes the peak to mean ratio of an array along a given dimension.
+# def peak_to_mean_ratio(array: torch.Tensor, dim: tuple[int]=None) -> torch.Tensor:
+#     f"""
+#     Computes the peak to mean ratio of an array along a given dimension.
 
-        **Args**:
-            array (torch.Tensor): Input array.
-            dim (int, tuple): Dimension(s) along which to compute the peak to mean ratio.
+#         **Args**:
+#             - array (torch.Tensor): Input array.
+#             - dim (int, tuple): Dimension(s) along which to compute the peak to mean ratio.
 
-        **Returns**:
-            torch.Tensor: Peak to mean ratio.
-    """
+#         **Returns**:
+#             - torch.Tensor: Peak to mean ratio.
+#     """
 
-    if dim is None:
-        dim = tuple(range(1, array.ndim))
-    else:
-        if isinstance(dim, int):
-            dim = (dim,)
-        elif not isinstance(dim, tuple):
-            raise ValueError("dim must be an int or a tuple of ints")
+#     if dim is None:
+#         dim = tuple(range(1, array.ndim))
+#     else:
+#         if isinstance(dim, int):
+#             dim = (dim,)
+#         elif not isinstance(dim, tuple):
+#             raise ValueError("dim must be an int or a tuple of ints")
 
-    max_vals = torch.amax(input=array, dim=dim, keepdim=True)
-    mean_vals = torch.mean(input=array, dim=dim, keepdim=True)
+#     max_vals = torch.amax(input=array, dim=dim, keepdim=True)
+#     mean_vals = torch.mean(input=array, dim=dim, keepdim=True)
 
-    return max_vals / mean_vals
-
-
-def coloration_coefficient(ir: torch.Tensor, interval: tuple[int,int]=None) -> torch.Tensor:
-    f"""
-    Computes the coloration coefficient of an array.
-
-        **Args**:
-            ir (torch.Tensor): impulse response.
-
-        **Returns**:
-            torch.Tensor: Coloration coefficient as the standard deviation with respect to a mean of 1.
-    """
-    if interval is not None:
-        array = array[interval[0]:interval[1]]
-
-    mean_value = torch.mean(input=array, dim=0, keepdim=True)
-    array_norm = array / mean_value
-
-    return torch.std(input=array_norm, dim=0, keepdim=True)
+#     return max_vals / mean_vals
 
 
-if __name__ == '__main__':
+# def coloration_coefficient(ir: torch.Tensor, interval: tuple[int,int]=None) -> torch.Tensor:
+#     f"""
+#     Computes the coloration coefficient of an array.
 
-    import matplotlib.pyplot as plt
-    array = torch.randn(100, 10, 10)
+#         **Args**:
+#             ir (torch.Tensor): impulse response.
 
-    ptmr = peak_to_mean_ratio(array)
+#         **Returns**:
+#             torch.Tensor: Coloration coefficient as the standard deviation with respect to a mean of 1.
+#     """
+#     if interval is not None:
+#         array = array[interval[0]:interval[1]]
 
-    cc = coloration_coefficient(array)
+#     mean_value = torch.mean(input=array, dim=0, keepdim=True)
+#     array_norm = array / mean_value
 
-    cc1 = coloration_coefficient(array[:,0,0].squeeze())
+#     return torch.std(input=array_norm, dim=0, keepdim=True)
 
-    a = 1
+
+# if __name__ == '__main__':
+
+#     import matplotlib.pyplot as plt
+#     array = torch.randn(100, 10, 10)
+
+#     ptmr = peak_to_mean_ratio(array)
+
+#     cc = coloration_coefficient(array)
+
+#     cc1 = coloration_coefficient(array[:,0,0].squeeze())
+
+#     a = 1

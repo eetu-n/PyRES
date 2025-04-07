@@ -7,14 +7,13 @@ from matplotlib import mlab
 from matplotlib import colors
 import seaborn as sns
 import numpy as np
-# Torch
+# PyTorch
 import torch
 import torchaudio
-# Flamo
-from flamo.functional import mag2db, get_magnitude, find_onset
+# FLAMO
+from flamo.functional import mag2db, get_magnitude
 # PyRES
-from pyRES.physical_room import PhRoom
-from pyRES.metrics import reverb_time, energy_coupling, direct_to_reverb_ratio
+from PyRES.metrics import energy_coupling, direct_to_reverb_ratio
 
 # ==================================================================
 # ========================== PHYSICAL ROOM =========================
@@ -49,8 +48,10 @@ def plot_coupling(rirs: torch.Tensor, fs: int, decay_interval: str='T30', **kwar
     ec_db = 10*torch.log10(ec_norm)
 
     plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+
     # plt.figure(figsize=(7,6))
     plt.figure()
+
     image = plt.imshow(ec_db)
     plt.ylabel('Microphone')
     plt.yticks(torch.arange(start=0, end=rirs.shape[1], step=5 if rirs.shape[1]>10 else 1).numpy(), labels=torch.arange(start=0, end=rirs.shape[1], step=5 if rirs.shape[1]>10 else 1).numpy())
@@ -223,7 +224,7 @@ def plot_DRR_pro_version(rirs: torch.Tensor, fs: int, decay_interval: str='T30',
 
     return None
 
-def plot_room_setup(room: PhRoom) -> None:
+def plot_room_setup(room) -> None:
 
     stage = torch.tensor(room.low_level_info['StageAndAudience']['StageEmitters']['Position_m'])
     loudspeakers = torch.tensor(room.low_level_info['AudioSetup']['SystemEmitters']['Position_m'])

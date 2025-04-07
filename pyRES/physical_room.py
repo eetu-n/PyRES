@@ -3,22 +3,23 @@
 # Miscellanous
 from collections import OrderedDict
 import json
-# Torch
+# PyTorch
 import torch
 import torch.nn as nn
 import torchaudio
-# Flamo
+# FLAMO
 from flamo import dsp
-# pyRES
-from pyRES.metrics import energy_coupling
+# PyRES
+from PyRES.metrics import energy_coupling
+from PyRES.plots import plot_room_setup, plot_coupling_pro_version, plot_DRR_pro_version
 
 
 # ==================================================================
-# ========================= ABSTRACT CLASS =========================
+# =========================== BASE CLASS ===========================
 
 class PhRoom(object):
     r"""
-    Physical room abstraction class.
+    Base class for physical-room implementations.
     """
     def __init__(
             self,
@@ -28,6 +29,25 @@ class PhRoom(object):
         ) -> None:
         r"""
         Initializes the PhRoom object.
+
+            **Args**:
+                - fs (int): Sample rate [Hz].
+                - nfft (int): FFT size.
+                - alias_decay_db (float): Anti-time-aliasing decay [dB].
+
+            **Attributes**:
+                - fs (int): Sample rate [Hz].
+                - nfft (int): FFT size.
+                - alias_decay_db (float): Anti-time-aliasing decay [dB].
+                - n_S (int): Number of stage sources.
+                - n_L (int): Number of system loudspeakers.
+                - n_M (int): Number of system microphones.
+                - n_A (int): Number of audience positions.
+                - rir_length (int): Length of the room impulse responses in samples.
+                - h_SA (nn.Module): Room impulse responses bewteen stage sources and audience positions.
+                - h_SM (nn.Module): Room impulse responses bewteen stage sources and system microphones.
+                - h_LA (nn.Module): Room impulse responses bewteen system loudspeakers and audience positions.
+                - h_LM (nn.Module): Room impulse responses bewteen system loudspeakers and system microphones.
         """
         object.__init__(self)
 
@@ -41,62 +61,62 @@ class PhRoom(object):
         self.n_A: int
 
         self.rir_length: int
-        self.h_SM: nn.Module
         self.h_SA: nn.Module
-        self.h_LM: nn.Module
+        self.h_SM: nn.Module
         self.h_LA: nn.Module
+        self.h_LM: nn.Module
 
     def get_ems_rcs_number(self) -> OrderedDict:
         r"""
         Returns the number of emitters and receivers.
 
             **Returns**:
-                OrderedDict: Number of sources and receivers.
+                - OrderedDict: Number of emitters and receivers.
         """
         return self.n_S, self.n_M, self.n_L, self.n_A
     
     def get_stg_to_aud(self) -> torch.Tensor:
         r"""
-        Returns the sources to audience RIRs
+        Returns the room impulse responses between stage sources and audience positions.
 
             **Returns**:
-                torch.Tensor: Sources to audience RIRs. shape = (samples, n_A, n_S).
+                - torch.Tensor: Stage-to-Audience RIRs. shape = (samples, n_A, n_S).
         """
         return self.h_SA
 
     def get_stg_to_mcs(self) -> torch.Tensor:
         r"""
-        Returns the sources to microphones RIRs
+        Returns the room impulse responses between stage sources and system microphones.
 
             **Returns**:
-                torch.Tensor: Sources to microphones RIRs. shape = (samples, n_M, n_S).
+                - torch.Tensor: Stage-to-Microphones RIRs. shape = (samples, n_M, n_S).
         """
         return self.h_SM
     
     def get_lds_to_aud(self) -> torch.Tensor:
         r"""
-        Returns the loudspeakers to audience RIRs
+        Returns the room impulse responses between system loudspeakers and audience positions.
 
             **Returns**:
-                torch.Tensor: Loudspeakers to audience RIRs. shape = (samples n_A, n_L).
+                - torch.Tensor: Loudspeakers-to-Audience RIRs. shape = (samples n_A, n_L).
         """
         return self.h_LA
 
     def get_lds_to_mcs(self) -> torch.Tensor:
         r"""
-        Returns the loudspeakers to microphones RIRs
+        Returns the room impulse responses between system loudspeakers and system microphones.
 
             **Returns**:
-                torch.Tensor: Loudspeakers to microphones RIRs. shape = (samples, n_M, n_L).
+                - torch.Tensor: Loudspeakers-to-Microphones RIRs. shape = (samples, n_M, n_L).
         """
         return self.h_LM
     
     def get_rirs(self) -> OrderedDict:
         r"""
-        Returns a copy of the system RIRs.
+        Returns a copy of all system room impulse responses.
 
             **Returns**:
-                OrderedDict: The system room impulse responses.
+                - OrderedDict: System RIRs.
         """
         RIRs = OrderedDict()
         RIRs.update({'h_SM': self.get_stg_to_mcs().param.clone().detach()})
@@ -105,16 +125,25 @@ class PhRoom(object):
         RIRs.update({'h_LA': self.get_lds_to_aud().param.clone().detach()})
         return RIRs
     
-    def create_modules(self, rirs_SM: torch.Tensor, rirs_SA: torch.Tensor, rirs_LM: torch.Tensor, rirs_LA: torch.Tensor, rir_length: int) -> tuple[dsp.Filter, dsp.Filter, dsp.Filter, dsp.Filter]:
+    def create_modules(self, rirs_SA: torch.Tensor, rirs_SM: torch.Tensor, rirs_LA: torch.Tensor, rirs_LM: torch.Tensor, rir_length: int) -> tuple[dsp.Filter, dsp.Filter, dsp.Filter, dsp.Filter]:
+        r"""
+        Creates the processing modules for the room-impulse-response blocks.
 
-        h_SM = dsp.Filter(
-            size=(rir_length, self.n_M, self.n_S),
-            nfft=self.nfft,
-            requires_grad=False,
-            alias_decay_db=self.alias_decay_db
-        )
-        h_SM.assign_value(rirs_SM)
+            **Args**:
+                - rirs_SA (torch.Tensor): Room impulse responses between stage sources and audience positions.
+                - rirs_SM (torch.Tensor): Room impulse responses between stage sources and system microphones.
+                - rirs_LA (torch.Tensor): Room impulse responses between system loudspeakers and audience positions.
+                - rirs_LM (torch.Tensor): Room impulse responses between system loudspeakers and system microphones.
+                - rir_length (int): Length of the room impulse responses in samples.
 
+            **Returns**:
+                - dsp.Filter: Room impulse responses bewteen stage sources and audience positions.
+                - dsp.Filter: Room impulse responses bewteen stage sources and system microphones.
+                - dsp.Filter: Room impulse responses bewteen system loudspeakers and audience positions.
+                - dsp.Filter: Room impulse responses bewteen system loudspeakers and system microphones.
+        """
+
+        # Stage to Audience
         h_SA = dsp.Filter(
             size=(rir_length, self.n_A, self.n_S),
             nfft=self.nfft,
@@ -123,6 +152,16 @@ class PhRoom(object):
         )
         h_SA.assign_value(rirs_SA)
 
+        # Stage to Microphones
+        h_SM = dsp.Filter(
+            size=(rir_length, self.n_M, self.n_S),
+            nfft=self.nfft,
+            requires_grad=False,
+            alias_decay_db=self.alias_decay_db
+        )
+        h_SM.assign_value(rirs_SM)
+
+        # Loudspeakers to Audience
         h_LM = dsp.Filter(
             size=(rir_length, self.n_M, self.n_L),
             nfft=self.nfft,
@@ -131,6 +170,7 @@ class PhRoom(object):
         )
         h_LM.assign_value(rirs_LM)
 
+        # Loudspeakers to Microphones
         h_LA = dsp.Filter(
             size=(rir_length, self.n_A, self.n_L),
             nfft=self.nfft,
@@ -139,7 +179,25 @@ class PhRoom(object):
         )
         h_LA.assign_value(rirs_LA)
 
-        return h_SM, h_SA, h_LM, h_LA
+        return h_SA, h_SM, h_LA, h_LM
+    
+    def plot_setup(self) -> None:
+        r"""
+        Plots the room setup.
+        """
+        plot_room_setup(self)
+    
+    def plot_coupling(self) -> None:
+        r"""
+        Plots the room coupling.
+        """
+        plot_coupling_pro_version(rirs=self.get_rirs(), fs=self.fs)
+    
+    def plot_DRR(self) -> None:
+        r"""
+        Plots the direct-to-reverberant ratio (DRR).
+        """
+        plot_DRR_pro_version(rirs=self.get_rirs(), fs=self.fs)
 
 
 # ==================================================================
@@ -162,10 +220,27 @@ class PhRoom_dataset(PhRoom):
 
             **Args**:
                 - fs (int): Sample rate [Hz].
-                - nfft (int): Number of frequency bins.
-                - alias_decay_db (float): Anti-time-aliasing decay in dB.
+                - nfft (int): FFT size.
+                - alias_decay_db (float): Anti-time-aliasing decay [dB].
                 - dataset_directory (str): Path to the dataset.
                 - room_name (str): Name of the room.
+
+            **Attributes**:
+                - fs (int): Sample rate [Hz].
+                - nfft (int): FFT size.
+                - alias_decay_db (float): Anti-time-aliasing decay [dB].
+                - room_name (str): Name of the room.
+                - high_level_info (dict): High-level information of the room.
+                - low_level_info (dict): Low-level information of the room.
+                - n_S (int): Number of stage sources.
+                - n_L (int): Number of system loudspeakers.
+                - n_M (int): Number of system microphones.
+                - n_A (int): Number of audience positions.
+                - rir_length (int): Length of the room impulse responses in samples.
+                - h_SA (nn.Module): Room impulse responses bewteen stage sources and audience positions.
+                - h_SM (nn.Module): Room impulse responses bewteen stage sources and system microphones.
+                - h_LA (nn.Module): Room impulse responses bewteen system loudspeakers and audience positions.
+                - h_LM (nn.Module): Room impulse responses bewteen system loudspeakers and system microphones.
         """
         super().__init__(
             fs=fs,
@@ -185,7 +260,7 @@ class PhRoom_dataset(PhRoom):
         )
 
         self.n_S, self.n_M, self.n_L, self.n_A = self.__ems_rcs_number()
-        self.h_SM, self.h_SA, self.h_LM, self.h_LA, self.rir_length = self.__load_rirs(
+        self.h_SA, self.h_SM, self.h_LA, self.h_LM, self.rir_length = self.__load_rirs(
             ds_dir=dataset_directory
         )
 
@@ -196,6 +271,9 @@ class PhRoom_dataset(PhRoom):
             **Args**:
                 - ds_dir (str): Path to the dataset.
                 - room (str): Name of the room.
+
+            **Returns**:
+                - dict: High-level information of the room.
         """
         ds_dir = ds_dir.rstrip('/')
         with open(f"{ds_dir}/datasetInfo.json", 'r') as file:
@@ -206,6 +284,13 @@ class PhRoom_dataset(PhRoom):
     def __get_room_info(self, ds_dir: str, room_dir: str) -> dict:
         r"""
         Gets the room information.
+
+            **Args**:
+                - ds_dir (str): Path to the dataset.
+                - room_dir (str): Path to the room in the dataset.
+
+            **Returns**:
+                - dict: Low-level information of the room.
         """
         ds_dir = ds_dir.rstrip('/')
         with open(f"{ds_dir}/data/{room_dir}/roomInfo.json", 'r') as file:
@@ -216,6 +301,12 @@ class PhRoom_dataset(PhRoom):
     def __ems_rcs_number(self) -> tuple[int, int, int, int]:
         r"""
         Scans the room information for the number of emitters and receivers.
+
+            **Returns**:
+                - int: Number of stage sources.
+                - int: Number of system microphones.
+                - int: Number of system loudspeakers.
+                - int: Number of audience positions.
         """
         n_S = self.low_level_info['StageAndAudience']['StageEmitters']['Number']
         n_M = self.low_level_info['AudioSetup']['SystemReceivers']['Number']
@@ -224,15 +315,19 @@ class PhRoom_dataset(PhRoom):
 
         return n_S, n_M, n_L, n_A
 
-    def __load_rirs(self, ds_dir: str) -> tuple[OrderedDict[str, torch.Tensor], int]:
+    def __load_rirs(self, ds_dir: str) -> tuple[dsp.Filter, dsp.Filter, dsp.Filter, dsp.Filter, int]:
         r"""
-        Loads the room impulse responses.
+        Loads all the room impulse responses from the dataset and returns them in processing modules.
 
             **Args**:
                 - ds_dir (str): Path to the dataset.
             
             **Returns**:
-                tuple[OrderedDict[str, torch.Tensor], int]: Room impulse responses and their length.
+                - dsp.Filter: Room impulse responses bewteen stage sources and audience positions.
+                - dsp.Filter: Room impulse responses bewteen stage sources and system microphones.
+                - dsp.Filter: Room impulse responses bewteen system loudspeakers and audience positions.
+                - dsp.Filter: Room impulse responses bewteen system loudspeakers and system microphones.
+                - int: Length of the room impulse responses in samples.
         """
 
         rir_info = self.low_level_info['RoomImpulseResponses']
@@ -247,31 +342,41 @@ class PhRoom_dataset(PhRoom):
         path_root = f"{ds_dir}/data/{self.high_level_info['RoomDirectory']}/{rir_info['Directory']}"
 
         path = f"{path_root}/{rir_info['StageEmitters-AudienceReceivers']['Directory']}"
-        stg_to_aud = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_S, n_receivers=self.n_A, fs=rir_fs, n_samples=rir_length)
+        stg_to_aud = self.__load_rir_matrix(path=f"{path}", n_emitters=self.n_S, n_receivers=self.n_A, fs=rir_fs, n_samples=rir_length)
         path = f"{path_root}/{rir_info['StageEmitters-SystemReceivers']['Directory']}"
-        stg_to_sys = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_S, n_receivers=self.n_M, fs=rir_fs, n_samples=rir_length)
+        stg_to_sys = self.__load_rir_matrix(path=f"{path}", n_emitters=self.n_S, n_receivers=self.n_M, fs=rir_fs, n_samples=rir_length)
         path = f"{path_root}/{rir_info['SystemEmitters-AudienceReceivers']['Directory']}"
-        sys_to_aud = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_L, n_receivers=self.n_A, fs=rir_fs, n_samples=rir_length)
+        sys_to_aud = self.__load_rir_matrix(path=f"{path}", n_emitters=self.n_L, n_receivers=self.n_A, fs=rir_fs, n_samples=rir_length)
         path = f"{path_root}/{rir_info['SystemEmitters-SystemReceivers']['Directory']}"
-        sys_to_sys = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_L, n_receivers=self.n_M, fs=rir_fs, n_samples=rir_length)
+        sys_to_sys = self.__load_rir_matrix(path=f"{path}", n_emitters=self.n_L, n_receivers=self.n_M, fs=rir_fs, n_samples=rir_length)
 
-        h_SM, h_SA, h_LM, h_LA = self.create_modules(
-            rirs_SM=stg_to_sys,
+        h_SA, h_SM, h_LA, h_LM = self.create_modules(
             rirs_SA=stg_to_aud,
-            rirs_LM=sys_to_sys,
+            rirs_SM=stg_to_sys,
             rirs_LA=sys_to_aud,
+            rirs_LM=sys_to_sys,
             rir_length=rir_length
         )
 
-        return h_SM, h_SA, h_LM, h_LA, rir_length
+        return h_SA, h_SM, h_LA, h_LM, rir_length
     
-    def __load_rir_matrix(self, path: str, n_sources: int, n_receivers: int, fs: int, n_samples: int) -> torch.Tensor:
+    def __load_rir_matrix(self, path: str, n_emitters: int, n_receivers: int, fs: int, n_samples: int) -> torch.Tensor:
         r"""
-        Loads the room impulse responses.
+        Loads the room impulse responses from the dataset and returns them in a matrix.
+
+            **Args**:
+                - path (str): Path to the room impulse responses in the dataset.
+                - n_sources (int): Number of emitters.
+                - n_receivers (int): Number of receivers.
+                - fs (int): Sample rate [Hz].
+                - n_samples (int): Length of the room impulse responses in samples.
+
+            **Returns**:
+                - torch.Tensor: Room-impulse-response matrix as a torch tensor [n_samples, n_receivers, n_emitters].
         """
-        matrix = torch.zeros(n_samples, n_receivers, n_sources)
+        matrix = torch.zeros(n_samples, n_receivers, n_emitters)
         for i in range(n_receivers):
-            for j in range(n_sources):
+            for j in range(n_emitters):
                 w = torchaudio.load(f"{path}/E{j+1:03d}_R{i+1:03d}_M01.wav")[0]
                 if self.fs != fs:
                     w = torchaudio.transforms.Resample(fs, self.fs)(w)
@@ -288,123 +393,128 @@ class PhRoom_dataset(PhRoom):
 # ==================================================================
 # =================== WHITE GAUSSIAN NOISE CLASS ===================
 
-class PhRoom_wgn(PhRoom):
-    r"""
-    Subclass of PhRoom that generates the room impulse responses of a shoebox room approximate to late reverberation only computed with exponentially-decaying Gaussian white noise sequences with Rayleigh-distributed magnitude responses.
-    """
-    def __init__(
-            self,
-            room_size: tuple[float, float, float],
-            room_RT: float,
-            fs: int,
-            nfft: int,
-            alias_decay_db: float,
-            n_S: int,
-            n_L: int,
-            n_A: int, 
-            n_M: int
-        ) -> None:
-        r"""
-        Initializes the PhRoom_wgn object.
+# class PhRoom_wgn(PhRoom):
+#     r"""
+#     Subclass of PhRoom that generates the room impulse responses of a shoebox room approximated to late reverberation only and computed with exponentially-decaying white-Gaussian-noise sequences with Rayleigh-distributed magnitude responses.
+#     """
+#     def __init__(
+#             self,
+#             room_size: tuple[float, float, float],
+#             room_RT: float,
+#             fs: int,
+#             nfft: int,
+#             alias_decay_db: float,
+#             n_S: int,
+#             n_L: int,
+#             n_A: int, 
+#             n_M: int
+#         ) -> None:
+#         r"""
+#         Initializes the PhRoom_wgn object.
 
-            **Args**:
-                - room_size (tuple[float, float, float]): Room size in meters.
-                - n_S (int): Number of sources. Defaults to 1.
-                - n_L (int): Number of loudspeakers. Defaults to 1.
-                - n_M (int): Number of microphones. Defaults to 1.
-                - n_A (int): Number of audience members. Defaults to 1.
-                - fs (int): Sample rate [Hz].
-        """
-        assert n_S > 0, "Not enough stage sources."
-        assert n_L > 0, "Not enough system loudspeakers."
-        assert n_M > 0, "Not enough system microphones."
-        assert n_A > 0, "Not enough audience receivers."
+#             **Args**:
+#                 - room_size (tuple[float, float, float]): Room size in meters.
+#                 - room_RT (float): Room reverberation time [s].
+#                 - fs (int): Sample rate [Hz].
+#                 - nfft (int): FFT size.
+#                 - alias_decay_db (float): Anti-time-aliasing decay [dB].
+#                 - n_S (int): Number of stage sources. Defaults to 1.
+#                 - n_L (int): Number of system loudspeakers.
+#                 - n_M (int): Number of system microphones.
+#                 - n_A (int): Number of audience positions.
+#         """
+#         assert n_S >= 0, "The number of stage sources must be higher than or equal to 0."
+#         assert n_L > 0,  "The number of system loudspeakers must be higher than 0."
+#         assert n_M > 0,  "The number of system microphones must be higher than 0."
+#         assert n_A >= 0, "The number of audience positions must be higher than or equal to 0."
 
-        super().__init__(
-            self,
-            fs=fs,
-            nfft=nfft,
-            alias_decay_db=alias_decay_db
-        )
+#         super().__init__(
+#             self,
+#             fs=fs,
+#             nfft=nfft,
+#             alias_decay_db=alias_decay_db
+#         )
 
-        self.RT = room_RT
-        self.room_size = room_size
+#         self.RT = room_RT
+#         self.room_size = room_size
         
-        self.n_S = n_S
-        self.n_L = n_L
-        self.n_M = n_M
-        self.n_A = n_A
+#         self.n_S = n_S
+#         self.n_L = n_L
+#         self.n_M = n_M
+#         self.n_A = n_A
 
-        self.h_SM, self.h_SA, self.h_LM, self.h_LA, self.rir_length = self.__generate_rirs()
+#         self.h_SA, self.h_SM, self.h_LA, self.h_LM, self.rir_length = self.__generate_rirs()
 
-    def __generate_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
-        # TODO: generate exponentially-decaying white-Gaussian-noise sequences and zero pad them based on room size simulating transducers positioning
-        # NOTE: Check torch.distributions.chi2.Chi2() and apply torch.sqrt() to obtain a Rayleigh distribution
-        pass
+#     def __generate_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
+#         # TODO: generate exponentially-decaying white-Gaussian-noise sequences and zero pad them based on room size simulating transducers positioning
+#         # NOTE: Check torch.distributions.chi2.Chi2() and apply torch.sqrt() to obtain a Rayleigh distribution
+#         pass
 
 
-class PhRoom_ISM(PhRoom):
-    r"""
-    Subclass of PhRoom that generates the room impulse responses of a shoebox room simulated through Image Source Method (ISM).
-    Reference:
-        pyroomacoustics:
-        https://pyroomacoustics.readthedocs.io/en/pypi-release/pyroomacoustics.room.html
-    """
-    def __init__(
-            self,
-            room_size: tuple[float, float, float],
-            room_RT: float,
-            ISM_max_order: int,
-            fs: int,
-            nfft: int,
-            alias_decay_db: float,
-            n_S: int,
-            n_L: int,
-            n_A: int,
-            n_M: int
-        ) -> None:
-        r"""
-        Initializes the PhRoom_wgn object.
+# class PhRoom_ISM(PhRoom):
+#     r"""
+#     Subclass of PhRoom that generates the room impulse responses of a shoebox room simulated through Image Source Method (ISM).
+#     Reference:
+#         pyroomacoustics:
+#         https://pyroomacoustics.readthedocs.io/en/pypi-release/pyroomacoustics.room.html
+#     """
+#     def __init__(
+#             self,
+#             room_size: tuple[float, float, float],
+#             room_RT: float,
+#             ISM_max_order: int,
+#             fs: int,
+#             nfft: int,
+#             alias_decay_db: float,
+#             n_S: int,
+#             n_L: int,
+#             n_A: int,
+#             n_M: int
+#         ) -> None:
+#         r"""
+#         Initializes the PhRoom_wgn object.
 
-            **Args**:
-                - room_size (tuple[float, float, float]): Room size in meters.
-                - room_RT (float): Room reverberation time [s].
-                - ISM_max_order (int): Maximum order of the Image Source Method.
-                - n_S (int): Number of sources. Defaults to 1.
-                - n_L (int): Number of loudspeakers. Defaults to 1.
-                - n_M (int): Number of microphones. Defaults to 1.
-                - n_A (int): Number of audience members. Defaults to 1.
-                - fs (int): Sample rate [Hz].
-        """
-        assert n_S > 0, "Not enough stage sources."
-        assert n_L > 0, "Not enough system loudspeakers."
-        assert n_M > 0, "Not enough system microphones."
-        assert n_A > 0, "Not enough audience receivers."
+#             **Args**:
+#                 - room_size (tuple[float, float, float]): Room size in meters.
+#                 - room_RT (float): Room reverberation time [s].
+#                 - ISM_max_order (int): Maximum order of the Image Source Method.
+#                 - fs (int): Sample rate [Hz].
+#                 - nfft (int): FFT size.
+#                 - alias_decay_db (float): Anti-time-aliasing decay [dB].
+#                 - n_S (int): Number of stage sources.
+#                 - n_L (int): Number of system loudspeakers.
+#                 - n_M (int): Number of system microphones.
+#                 - n_A (int): Number of audience positions.
+#         """
+#         assert n_S >= 0, "The number of stage sources must be higher than or equal to 0."
+#         assert n_L > 0,  "The number of system loudspeakers must be higher than 0."
+#         assert n_M > 0,  "The number of system microphones must be higher than 0."
+#         assert n_A >= 0, "The number of audience positions must be higher than or equal to 0."
 
-        super().__init__(
-            self,
-            fs=fs,
-            nfft=nfft,
-            alias_decay_db=alias_decay_db
-        )
+#         super().__init__(
+#             self,
+#             fs=fs,
+#             nfft=nfft,
+#             alias_decay_db=alias_decay_db
+#         )
 
-        self.RT = room_RT
-        self.room_size = room_size
-        self.max_order = ISM_max_order
+#         self.RT = room_RT
+#         self.room_size = room_size
+#         self.max_order = ISM_max_order
         
-        self.n_S = n_S
-        self.n_L = n_L
-        self.n_M = n_M
-        self.n_A = n_A
+#         self.n_S = n_S
+#         self.n_L = n_L
+#         self.n_M = n_M
+#         self.n_A = n_A
 
-        self.h_SM, self.h_SA, self.h_LM, self.h_LA, self.rir_length = self.__generate_rirs()
+#         self.h_SA, self.h_SM, self.h_LA, self.h_LM, self.rir_length = self.__generate_rirs()
 
-    def __generate_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
+#     def __generate_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
 
-        # e_absorption, max_order = pra.inverse_sabine(rt60, room_dim)
+#         # e_absorption, max_order = pra.inverse_sabine(rt60, room_dim)
 
-        # room = pra.ShoeBox(
-        #     room_dim, fs=16000, materials=pra.Material(e_absorption), max_order=max_order
-        # )
+#         # room = pra.ShoeBox(
+#         #     room_dim, fs=16000, materials=pra.Material(e_absorption), max_order=max_order
+#         # )
 
-        pass
+#         pass

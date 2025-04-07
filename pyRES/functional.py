@@ -1,12 +1,14 @@
 # ==================================================================
 # ============================ IMPORTS =============================
-# Torch
+# PyTorch
 import torch
-# Flamo
+# FLAMO
 from flamo import dsp
 from flamo.functional import db2mag
 from flamo.auxiliary.reverb import rt2slope
 
+
+# ==================================================================
 
 def resonance_filter(
         fs: int, resonance:torch.Tensor, gain:torch.Tensor, phase:torch.Tensor, t60:torch.Tensor
@@ -15,11 +17,11 @@ def resonance_filter(
     Returns the transfer function coefficients of a complex first order resonance filter.
 
         **Args**:
-            - f_res (torch.Tensor): The resonance frequency of the mode in Hz.
-            - gain (torch.Tensor): The magnitude peak values in dB.
-            - phase (torch.Tensor): The phase of the resonance.
-            - t60 (float): The reverberation time of the resonance in seconds.
-            - fs (int, optional): The sampling frequency of the signal in Hz. Defaults to 48000.
+            - fs (int, optional): The sampling frequency of the signal [Hz].
+            - resonance (torch.Tensor): The resonance frequency of the mode [Hz].
+            - gain (torch.Tensor): The magnitude peak values [dB].
+            - phase (torch.Tensor): The phase of the resonance [rad].
+            - t60 (float): The reverberation time of the resonance [s].
 
         **Returns**:
             - b (torch.Tensor): The numerator coefficients of the filter transfer function.
@@ -65,13 +67,13 @@ def modal_reverb(
     Returns the transfer function of the modal reverb.
 
         **Args**:
-            - fs (int): The sampling frequency of the signal in Hz.
-            - nfft (int): The number of frequency bins.
-            - f_res (torch.Tensor): The resonance frequencies of the modes in Hz.
-            - gain (torch.Tensor): The magnitude peak values in dB.
-            - phase (torch.Tensor): The phase of the resonances.
-            - t60 (float): The reverberation time of the modal reverb in seconds.
-            - alias_decay_db (float): The anti-time-aliasing decay in dB.
+            - fs (int): The sampling frequency of the signal [Hz]].
+            - nfft (int): FFT size.
+            - resonances (torch.Tensor): The resonance frequencies of the modes [Hz].
+            - gains (torch.Tensor): The magnitude peak values [dB].
+            - phases (torch.Tensor): The phase of the resonances [rad].
+            - t60 (float): The reverberation time of the modal reverb [s].
+            - alias_decay_db (float): The anti-time-aliasing decay [dB].
 
         **Returns**:
             - torch.Tensor: The transfer function of the modal reverb.
@@ -92,7 +94,7 @@ def modal_reverb(
     return torch.div(B, A).sum(dim=-1)
 
 
-def one_pole_filter(mag_DC, mag_NY):
+def one_pole_filter(mag_DC: float, mag_NY: float) -> tuple[torch.Tensor, torch.Tensor]:
     r"""
     Returns the coefficients of a one-pole absorption filter.
 
@@ -138,11 +140,11 @@ class FDN_one_pole_absorption(dsp.parallelFilter):
 
             **Args**:
                 - channels (int, optional): The number of channels. Defaults to 1.
-                - fs (int, optional): The sampling frequency of the signal in Hz. Defaults to 48000.
-                - nfft (int, optional): The number of frequency bins. Defaults to 2**11.
-                - t60_DC (float, optional): The reverberation time of the FDN at 0 Hz in seconds. Defaults to 1.0.
-                - t60_NY (float, optional): The reverberation time of the FDN at Nyquist frequency in seconds. Defaults to 1.0.
-                - alias_decay_db (float, optional): The anti-time-aliasing decay in dB. Defaults to 0.0.
+                - fs (int, optional): The sampling frequency of the signal [Hz]. Defaults to 48000.
+                - nfft (int, optional): FFT size. Defaults to 2**11.
+                - t60_DC (float, optional): The reverberation time of the FDN at 0 Hz [s]. Defaults to 1.0.
+                - t60_NY (float, optional): The reverberation time of the FDN at Nyquist frequency [s]. Defaults to 1.0.
+                - alias_decay_db (float, optional): The anti-time-aliasing decay [dB]. Defaults to 0.0.
         """
         super().__init__(size=(1, channels), nfft=nfft, requires_grad=False, alias_decay_db=alias_decay_db)
 
@@ -153,19 +155,14 @@ class FDN_one_pole_absorption(dsp.parallelFilter):
     def get_freq_response(self):
         r"""
         Get the frequency response of the absorption filters.
+        Reference: flamo.dsp.parallelFilter.get_freq_response()
         """
-
         self.freq_response = lambda param: self.compute_freq_response(param.squeeze())
 
     def compute_freq_response(self, delays: torch.Tensor) -> torch.Tensor:
         r"""
         Compute the frequency response of the absorption filters.
-
-            **Args**:
-                - delays (torch.Tensor): The lengths of the delay lines in samples.
-
-            **Returns**:
-                - torch.Tensor: The frequency response of the absorption filters.
+        Reference: flamo.dsp.parallelFilter.compute_freq_response()
         """
 
         absorp_DC = self.rt2absorption(self.t60_DC, self.fs, delays)
@@ -186,9 +183,9 @@ class FDN_one_pole_absorption(dsp.parallelFilter):
         Convert time in seconds of 60 dB decay to energy decay slope relative to the delay line length.
 
             **Args**:
-                - rt60 (torch.Tensor): The reverberation time in seconds.
-                - fs (int): The sampling frequency of the signal in Hz.
-                - delays_len (torch.Tensor): The lengths of the delay lines in samples.
+                - rt60 (torch.Tensor): The reverberation time [s].
+                - fs (int): The sampling frequency of the signal [Hz].
+                - delays_len (torch.Tensor): The lengths of the delay lines [samples].
 
             **Returns**:
                 - torch.Tensor: The energy decay slope relative to the delay line length.

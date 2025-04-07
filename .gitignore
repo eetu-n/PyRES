@@ -161,8 +161,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-/AA_Dataset
-/zenodo_dataset
 /output
+/training_output
 /model_states
 /dataRES

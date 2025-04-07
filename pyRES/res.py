@@ -4,19 +4,19 @@
 from collections import OrderedDict
 import os
 import time
-# Torch
+# PyTorch
 import torch
 import torch.nn as nn
-# Flamo
+# FLAMO
 from flamo import dsp, system
 from flamo.functional import db2mag, mag2db, get_magnitude, get_eigenvalues
 # PyRES
-from pyRES.physical_room import PhRoom
-from pyRES.virtual_room import VrRoom
+from PyRES.physical_room import PhRoom
+from PyRES.virtual_room import VrRoom
 
 
 # ==================================================================
-# ================ REVERBERATION ENHANCEMENT SYSTEM ================]
+# ================ REVERBERATION ENHANCEMENT SYSTEM ================
 
 class RES(object):
     r"""
@@ -46,7 +46,19 @@ class RES(object):
 
             **Args**:
                 - physical_room (PhRoom): physical room.
-                - virtual_room (VrRoom): virtual room. Defaults to None.
+                - virtual_room (VrRoom): virtual room.
+
+            **Attributes**:
+                - fs (torch.Tensor): sampling frequency [Hz].
+                - nfft (int): FFT size.
+                - alias_decay_db (float): anti-time-aliasing decay [dB].
+                - n_S (int): number of stage sources.
+                - n_M (int): number of system microphones.
+                - n_L (int): number of system loudspeakers.
+                - n_A (int): number of audience positions.
+                - __H (PhRoom): physical room.
+                - __v_ML (VrRoom): virtual room.
+                - __G (dsp.parallelGain): system gain.
         """
         object.__init__(self)
 
@@ -54,7 +66,7 @@ class RES(object):
         self.fs, self.nfft, self.alias_decay_db = self.__check_param_compatibility(physical_room, virtual_room)
 
         # Number of emitters and receivers
-        self.n_S, self.n_A, self.n_M, self.n_L = self.__check_io_compatibility(physical_room, virtual_room)
+        self.n_S, self.n_M, self.n_L, self.n_A = self.__check_io_compatibility(physical_room, virtual_room)
 
         # Physical room
         self.__H = physical_room
@@ -68,31 +80,6 @@ class RES(object):
         # Apply safe margin of 2 dB
         gbi_init = self.compute_GBI()
         self.set_G(db2mag(mag2db(gbi_init) - 2))
-
-        # Optimization routine
-        # self.__opt = system.Shell(
-        #     core=self.open_loop(),
-        #     input_layer=system.Series(
-        #         dsp.Transform(lambda x: x.diag_embed()),
-        #         dsp.FFT(self.nfft)
-        #     )
-        # )
-
-    # ==================================================================================
-    # ================================== FORWARD PATH ==================================
-
-    # TODO: cancel this
-    # def forward(self, x: torch.Tensor) -> torch.Tensor:
-    #     r"""
-    #     Computes one iteration of the optimization routine.
-
-    #         **Args**:
-    #             x (torch.Tensor): input signal.
-
-    #         **Returns**:
-    #             torch.Tensor: output of the optimization routine.
-    #     """
-    #     return self.__opt(x)
     
     # ==================================================================================
     # ================================ CHECK METHODS ===================================
@@ -110,46 +97,46 @@ class RES(object):
         assert(physical_room.n_M == virtual_room.n_M), "Number of microphones must be the same in physical and virtual rooms."
         assert(physical_room.n_L == virtual_room.n_L), "Number of loudspeakers must be the same in physical and virtual rooms."
 
-        return physical_room.n_S, physical_room.n_A, physical_room.n_M, physical_room.n_L
+        return physical_room.n_S, physical_room.n_M, physical_room.n_L, physical_room.n_A
 
     # ==================================================================================
     # ============================ PHYSICAL ROOM METHODS ===============================
 
     def get_h_SA(self) -> nn.Module:
         f"""
-        Returns the physical-room module from sound sources to audience positions.
+        Returns the room impulse responses between stage sources and audience positions.
 
             **Returns**:
-                nn.Module: sound-source-to-audience-positions
+                - nn.Module: Stage-to-Audience RIRs
         """
         return self.__H.get_stg_to_aud()
     
     def get_h_SM(self) -> nn.Module:
         f"""
-        Returns the physical-room module from sound sources to microphones.
+        Returns the room impulse responses between stage sources and system microphones.
 
             **Returns**:
-                nn.Module: sound-source-to-microphones
+                - nn.Module: Stage-to-Microphones RIRs
         """
         return self.__H.get_stg_to_mcs()
-
-    def get_h_LM(self) -> nn.Module:
-        f"""
-        Returns the physical-room module from loudspeakers to microphones.
-
-            **Returns**:
-                nn.Module: loudspeaker-to-microphone impulse-response module.
-        """
-        return self.__H.get_lds_to_mcs()
     
     def get_h_LA(self) -> nn.Module:
         f"""
-        Returns the physical-room module from loudspeakers to audience positions.
+        Returns the room impulse responses between system loudspeakers and audience positions.
 
             **Returns**:
-                nn.Module: loudspeaker-to-audience-positions
+                - nn.Module: Loudspeaker-to-Audience RIRs
         """
         return self.__H.get_lds_to_aud()
+
+    def get_h_LM(self) -> nn.Module:
+        f"""
+        Returns the room impulse responses between system loudspeakers and system microphones.
+
+            **Returns**:
+                - nn.Module: Loudspeaker-to-Microphones RIRs
+        """
+        return self.__H.get_lds_to_mcs()
     
     # ==================================================================================
     # ============================= VIRTUAL ROOM METHODS ===============================
@@ -159,7 +146,7 @@ class RES(object):
         Returns the virtual room.
 
             **Returns**:
-                nn.Module: virtual room.
+                - nn.Module: virtual room.
         """
         return self.__v_ML
     
@@ -168,7 +155,8 @@ class RES(object):
         Computes the time and frequency responses of the virtual room.
         
             **Returns**:
-                tuple[torch.Tensor, torch.Tensor]: time and frequency responses
+                - torch.Tensor [samples, n_L, n_M]: time responses
+                - torch.Tensor [nfft, n_L, n_M]: frequency responses
         """
 
         # Generate virtual room
@@ -187,10 +175,10 @@ class RES(object):
     
     def get_G(self) -> nn.Module:
         r"""
-        Returns the system gain value in linear scale.
+        Returns the system-gain value in linear scale.
 
             **Returns**:
-                torch.Tensor: system gain value (linear scale).
+                - torch.Tensor: system gain value (linear scale).
         """
         return self.__G
 
@@ -199,7 +187,7 @@ class RES(object):
         Sets the system gain value to a value in linear scale.
 
             **Args**:
-                g (float): new system gain value (linear scale).
+                - g (float): new system gain value (linear scale).
         """
         assert isinstance(g, torch.FloatTensor), "G must be a torch.FloatTensor."
         self.__G.assign_value(g*torch.ones(self.n_L))
@@ -212,7 +200,7 @@ class RES(object):
                 - criterion (str, optional): criterion to compute the GBI. Defaults to 'eigenvalue_magnitude'.
 
             **Returns**:
-                torch.Tensor: GBI value (linear scale).
+                - torch.Tensor: GBI value (linear scale).
         """
         match criterion:
 
@@ -269,7 +257,7 @@ class RES(object):
         Generates the system open loop.
 
             **Returns**:
-                system.Series: Series object instance implementing the system open loop.
+                - system.Series: Series object instance implementing the system open loop.
         """
         modules = OrderedDict([
             ('V_ML', self.get_v_ML()),
@@ -284,7 +272,8 @@ class RES(object):
         Computes the time- and frequency-response matrices of the open-loop.
 
             **Returns**:
-                tuple[torch.Tensor, torch.Tensor]: time and frequency responses.
+                - torch.Tensor: time responses [samples, n_M, n_M].
+                - torch.Tensor: frequency responses [nfft, n_M, n_M].
         """
 
         # Generate open loop
@@ -304,7 +293,7 @@ class RES(object):
         Computes the eigenvalues of the system open loop.
 
             **Returns**:
-                torch.Tensor: open-loop eigenvalues.
+                - torch.Tensor: open-loop eigenvalues [nfft, n_M, n_M].
         """
 
         # Generate open-loop frequency responses
@@ -331,7 +320,8 @@ class RES(object):
         Computes the time- and frequency-response matrices of the closed-loop.
 
             **Returns**:
-                tuple[torch.Tensor, torch.Tensor]: time and frequency responses.
+                - torch.Tensor: time responses [samples, n_M, n_M].
+                - torch.Tensor: frequency responses [nfft, n_M, n_M].
         """
 
         # Generate closed loop
@@ -351,7 +341,7 @@ class RES(object):
         Computes the eigenvalues of the system closed loop.
 
             **Returns**:
-                torch.Tensor: closed-loop eigenvalues.
+                - torch.Tensor: closed-loop eigenvalues [nfft, n_M, n_M].
         """
 
         # Generate closed-loop frequency responses
@@ -370,7 +360,8 @@ class RES(object):
         Creates the full system's Natural and Electroacoustic paths.
 
             **Returns**:
-                tuple[Shell, Shell]: Shell object instances implementing the natural and the electroacoustic paths of the RES.
+                - Shell: Shell object instance implementing the natural path of the RES.
+                - Shell: Shell object instance implementing the electroacoustic path of the RES.
         """
         # Build closed feedback loop
         closed_loop = self.closed_loop()
@@ -393,7 +384,7 @@ class RES(object):
         Simulates the full system producing the system impulse responses from the stage emitters to the audience receivers.
 
             **Returns**:
-                torch.Tensor: system impulse response.
+                - torch.Tensor: RES impulse responses [samples, n_A, n_S].
         """
         # Generate the paths
         nat_path, ea_path = self.__system_paths()
@@ -405,57 +396,6 @@ class RES(object):
         return y.squeeze()
     
     # ==================================================================================
-    # ============================= OPTIMIZATION ROUTINE ===============================
-
-    # def __set_opt_inputLayer(self, layer: nn.Module) -> None:
-    #     r"""
-    #     Sets the input layer of the optimization routine.
-
-    #         **Args**:
-    #             layer (nn.Module): input layer.
-    #     """
-    #     self.__opt.set_inputLayer(layer)
-
-    # def __set_opt_outputLayer(self, layer: nn.Module) -> None:
-    #     r"""
-    #     Sets the output layer of the optimization routine.
-
-    #         **Args**:
-    #             layer (nn.Module): output layer.
-    #     """
-    #     self.__opt.set_outputLayer(layer)
-
-    # def set_optimization_routine(self, to_optimize: str, input_layer: nn.Module=None, output_layer: nn.Module=None) -> None:
-    #     r"""
-    #     Sets the optimization routine.
-
-    #         **Args**:
-    #             - to_optimize (str): optimization routine.
-    #             - input_layer (nn.Module, optional): input layer. Defaults to None.
-    #             - output_layer (nn.Module, optional): output layer. Defaults to None.
-    #     """
-    #     match to_optimize:
-    #         case 'open_loop':
-    #             self.__set_opt_inputLayer(system.Series(
-    #                 dsp.Transform(lambda x: x.diag_embed()),
-    #                 dsp.FFT(self.nfft))
-    #             )
-    #             self.__opt = system.Shell(core=self.open_loop())
-    #         case 'closed_loop':
-    #             self.__set_opt_inputLayer(system.Series(
-    #                 dsp.Transform(lambda x: x.diag_embed()),
-    #                 dsp.FFT(self.nfft))
-    #             )
-    #             self.__opt = system.Shell(core=self.closed_loop())
-    #         case _:
-    #             raise ValueError(f"Optimization routine '{to_optimize}' not recognized.")
-            
-    #     if input_layer is not None:
-    #         self.__set_opt_inputLayer(input_layer)
-    #     if output_layer is not None:
-    #         self.__set_opt_outputLayer(output_layer)
-    
-    # ==================================================================================
     # ================================= SYSTEM STATE ===================================
 
     def get_v_ML_state(self) -> dict:
@@ -463,7 +403,7 @@ class RES(object):
         Returns the system current state.
 
             **Returns**:
-                dict: model's state.
+                - dict: model's state.
         """
         return self.get_v_ML().state_dict()
     
@@ -472,7 +412,7 @@ class RES(object):
         Sets the system current state.
 
             **Args**:
-                state (dict): new state.
+                - state (dict): new state.
         """
         self.get_v_ML().load_state_dict(state)
 
@@ -481,7 +421,7 @@ class RES(object):
         Saves the system current state.
 
             **Args**:
-                directory (str): path to save the state.
+                - directory (str): path to save the state.
         """
         directory = directory.rstrip('/')
         state = self.get_v_ML_state()

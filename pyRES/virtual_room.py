@@ -1,21 +1,21 @@
 # ==================================================================
 # ============================ IMPORTS =============================
-# Torch
+# PyTorch
 import torch
-# Flamo
+# FLAMO
 from flamo import dsp, system
 from flamo.functional import db2mag, skew_matrix
 from flamo.auxiliary.reverb import rt2slope
 # PyRES
-from pyRES.functional import modal_reverb, FDN_one_pole_absorption
+from PyRES.functional import modal_reverb, FDN_one_pole_absorption
 
 
 # ==================================================================
-# ========================= ABSTRACT CLASS =========================
+# =========================== BASE CLASS ===========================
 
 class VrRoom(object):
     r"""
-    Virtual room abstraction class.
+    Base class for virtual-room implementations.
     """
     def __init__(
         self,
@@ -23,10 +23,24 @@ class VrRoom(object):
         n_L: int,
         fs: int,
         nfft: int,
-        alias_decay_db: float=0.0,
+        alias_decay_db: float=0.0
     ):
         r"""
         Initializes the virtual room.
+
+            **Args**:
+                - n_M (int): Number of system microphones.
+                - n_L (int): Number of system loudspeakers.
+                - fs (int): Sampling frequency [Hz].
+                - nfft (int): FFT size.
+                - alias_decay_db (float): Anti-time-aliasing decay [dB].
+
+            **Attributes**:
+                - n_M (int): Number of system microphones.
+                - n_L (int): Number of system loudspeakers.
+                - fs (int): Sampling frequency [Hz].
+                - nfft (int): FFT size.
+                - alias_decay_db (float): Anti-time-aliasing decay [dB].
         """
 
         object.__init__(self)
@@ -40,14 +54,15 @@ class VrRoom(object):
     def coupling(self, inputs: int, outputs: int) -> dsp.Gain:
         r"""
         Initializes the coupling matrix.
-        It is used to connect a square dsp to a system with n_L ~= n_M.
+        It connects the virtual room to the physical room in case of n_L ~= n_M.
+        One should be used in input, between physical room and virtual room, and one should be used in output, between virtual room and physical room
 
             **Args**:
                 - inputs (int): Number of input channels.
                 - outputs (int): Number of output channels.
 
             **Returns**:
-                dsp.Gain: Coupling matrix.
+                - dsp.Gain: Coupling matrix.
         """
 
         module = dsp.Gain(
@@ -67,6 +82,7 @@ class VrRoom(object):
 class unitary_parallel_connections(VrRoom, dsp.parallelGain):
     r"""
     Unitary parallel connections for systems with independent channels.
+    It can only be paired to a physical room with n_L = n_M.
     """
     def __init__(
         self,
@@ -74,7 +90,7 @@ class unitary_parallel_connections(VrRoom, dsp.parallelGain):
         n_L: int = 1,
         fs: int = 48000,
         nfft: int = 2**11,
-        alias_decay_db: float = 0.0,
+        alias_decay_db: float = 0.0
     ):
         r"""
         Initializes the unitary parallel connections.
@@ -82,8 +98,9 @@ class unitary_parallel_connections(VrRoom, dsp.parallelGain):
             **Args**:
                 - n_M (int): Number of system microphones.
                 - n_L (int): Number of system loudspeakers.
+                - fs (int): Sampling frequency [Hz].
                 - nfft (int): FFT size.
-                - alias_decay_db (float): Anti-time-aliasing decay in dB.
+                - alias_decay_db (float): Anti-time-aliasing decay [dB].
         """
         
         assert n_M == n_L, "The number of system microphones and the number of system loudspeakers must be equal for unitary_independent_connections"
@@ -117,7 +134,7 @@ class unitary_mixing_matrix(VrRoom, system.Series):
         n_L: int = 1,
         fs: int = 48000,
         nfft: int = 2**11,
-        alias_decay_db: float = 0.0,
+        alias_decay_db: float = 0.0
     ):
         r"""
         Initializes the unitary mixing matrix.
@@ -125,8 +142,9 @@ class unitary_mixing_matrix(VrRoom, system.Series):
             **Args**:
                 - n_M (int): Number of system microphones.
                 - n_L (int): Number of system loudspeakers.
+                - fs (int): Sampling frequency [Hz].
                 - nfft (int): FFT size.
-                - alias_decay_db (float): Anti-time-aliasing decay in dB.
+                - alias_decay_db (float): Anti-time-aliasing decay [dB].
         """
 
         VrRoom.__init__(
@@ -149,11 +167,7 @@ class unitary_mixing_matrix(VrRoom, system.Series):
     def __components(self) -> tuple[dsp.Gain, dsp.Matrix, dsp.Gain]:
         r"""
         Initializes the components of the unitary mixing matrix.
-        The coupling matrices allow for appropriate input-output channels for systems with different numbers of microphones and loudspeakers.
-        
-            **Args**:
-                - nfft (int): FFT size.
-                - alias_decay_db (float): Anti-time-aliasing decay in dB.
+        The coupling matrices allow for appropriate input-output channels in case of systems with n_L ~= n_M.
 
             **Returns**:
                 - coupling_1 (dsp.Gain): Coupling matrix 1.
@@ -175,9 +189,10 @@ class unitary_mixing_matrix(VrRoom, system.Series):
             requires_grad = False,
             alias_decay_db = self.alias_decay_db,
         )
-        M = unitary.param.clone().detach()
-        O = torch.matrix_exp(skew_matrix(M))
-        unitary.assign_value(O)
+        # Generate a random orthogonal matrix
+        m = unitary.param.clone().detach()
+        o = torch.matrix_exp(skew_matrix(m))
+        unitary.assign_value(o)
 
         coupling_2 = self.coupling(
             inputs = max_n,
@@ -192,7 +207,7 @@ class unitary_mixing_matrix(VrRoom, system.Series):
 
 class random_FIRs(VrRoom, dsp.Filter):
     r"""
-    Random FIR filter with a given order. Learnable FIR coefficients.
+    Random FIR filter of given order. Learnable coefficients.
     """
     def __init__(
         self,
@@ -200,8 +215,8 @@ class random_FIRs(VrRoom, dsp.Filter):
         n_L: int=1,
         fs: int=48000,
         nfft: int=2**11,
-        FIR_order: int=100,
         alias_decay_db: float=0.0,
+        FIR_order: int=100,
         requires_grad: bool=False
     ) -> None:
         r"""
@@ -210,9 +225,10 @@ class random_FIRs(VrRoom, dsp.Filter):
             **Args**:
                 - n_M (int): Number of system microphones.
                 - n_L (int): Number of system loudspeakers.
+                - fs (int): Sampling frequency [Hz].
                 - nfft (int): FFT size.
                 - FIR_order (int): FIR filter order.
-                - alias_decay_db (float): Anti-time-aliasing decay in dB.
+                - alias_decay_db (float): Anti-time-aliasing decay [dB].
                 - requires_grad (bool): Whether the filter is learnable.
         """
 
@@ -244,12 +260,12 @@ class phase_canceling_modal_reverb(VrRoom, dsp.DSP):
         n_L: int=1,
         fs: int = 48000,
         nfft: int = 2**11,
+        alias_decay_db: float=0.0,
         n_modes: int=10,
         low_f_lim: float=0,
         high_f_lim: float=500,
         t60: float=1.0,
-        requires_grad: bool=False,
-        alias_decay_db: float=0.0,
+        requires_grad: bool=False
     ):
         r"""
         Initializes the phase canceling modal reverb.
@@ -257,14 +273,14 @@ class phase_canceling_modal_reverb(VrRoom, dsp.DSP):
             **Args**:
                 - n_M (int): Number of system microphones.
                 - n_L (int): Number of system loudspeakers.
-                - fs (int): Sampling frequency.
+                - fs (int): Sampling frequency [Hz].
                 - nfft (int): FFT size.
+                - alias_decay_db (float): Anti-time-aliasing decay [dB].
                 - n_modes (int): Number of modes in the modal reverb.
-                - low_f_lim (float): Lowest mode frequency.
-                - high_f_lim (float): Highest mode frequency.
-                - t60 (float): Reverberation time of the modal reverb.
+                - low_f_lim (float): Lowest mode frequency [Hz].
+                - high_f_lim (float): Highest mode frequency [Hz].
+                - t60 (float): Reverberation time of the modal reverb [s].
                 - requires_grad (bool): Whether the filter is learnable.
-                - alias_decay_db (float): Anti-time-aliasing decay in dB.
         """
 
         VrRoom.__init__(
@@ -298,13 +314,7 @@ class phase_canceling_modal_reverb(VrRoom, dsp.DSP):
     def forward(self, x, ext_param=None):
         r"""
         Applies the Filter module to the input tensor x.
-
-            **Arguments**:
-                - **x** (torch.Tensor): Input tensor of shape :math:`(B, M, N_{in}, ...)`.
-                - **ext_param** (torch.Tensor, optional): Parameter values received from external modules (hyper conditioning). Default: None.
-
-            **Returns**:
-                torch.Tensor: Output tensor of shape :math:`(B, M, N_{out}, ...)`.
+        Reference: FLAMO.dsp.Filter.forward()
         """
         self.check_input_shape(x)
         if ext_param is None:
@@ -318,9 +328,7 @@ class phase_canceling_modal_reverb(VrRoom, dsp.DSP):
     def check_input_shape(self, x):
         r"""
         Checks if the dimensions of the input tensor x are compatible with the module.
-
-            **Arguments**:
-                **x** (torch.Tensor): Input tensor of shape :math:`(B, M, N_{in}, ...)`.
+        Reference: FLAMO.dsp.Filter.check_input_shape()
         """
         if (int(self.nfft / 2 + 1), self.input_channels) != (x.shape[1], x.shape[2]):
             raise ValueError(
@@ -330,6 +338,7 @@ class phase_canceling_modal_reverb(VrRoom, dsp.DSP):
     def check_param_shape(self):
         r"""
         Checks if the shape of the filter parameters is valid.
+        Reference: FLAMO.dsp.Filter.check_param_shape()
         """
         assert (
             len(self.size) == 4
@@ -337,23 +346,23 @@ class phase_canceling_modal_reverb(VrRoom, dsp.DSP):
 
     
     def init_param(self):
+        r"""
+        Initializes the filter parameters.
+        Reference: FLAMO.dsp.Filter.init_param()
+        """
         torch.nn.init.uniform_(self.param, a=0, b=2*torch.pi)
 
     def get_freq_response(self):
-
+        r"""
+        Computes the frequency response of the filter.
+        Reference: FLAMO.dsp.Filter.get_freq_response()
+        """
         self.freq_response = lambda param: modal_reverb(fs=self.fs, nfft=self.nfft, resonances=self.resonances, gains=self.gains, phases=param, t60=self.t60, alias_decay_db=self.alias_decay_db)
 
     def get_freq_convolve(self):
         r"""
         Computes the frequency convolution function.
-
-        The frequency convolution is computed using the :func:`torch.einsum` function.
-
-            **Arguments**:
-                **x** (torch.Tensor): Input tensor.
-
-            **Returns**:
-                torch.Tensor: Output tensor after frequency convolution.
+        Reference: FLAMO.dsp.Filter.get_freq_convolve()
         """
         self.freq_convolve = lambda x, param: torch.einsum(
             "fmn,bfn...->bfm...", self.freq_response(param), x
@@ -362,6 +371,7 @@ class phase_canceling_modal_reverb(VrRoom, dsp.DSP):
     def get_io(self):
         r"""
         Computes the number of input and output channels based on the size parameter.
+        Reference: FLAMO.dsp.Filter.get_io()
         """
         self.input_channels = self.size[-2]
         self.output_channels = self.size[-3]
@@ -369,6 +379,7 @@ class phase_canceling_modal_reverb(VrRoom, dsp.DSP):
     def initialize_class(self):
         r"""
         Initializes the class.
+        Reference: FLAMO.dsp.Filter.initialize_class()
         """
         self.init_param()
         self.get_gamma()
@@ -378,32 +389,32 @@ class phase_canceling_modal_reverb(VrRoom, dsp.DSP):
         self.get_freq_convolve()
 
 
-class wgn_reverb(VrRoom, dsp.DSP):
-    # TODO: After modifying wgn_reverb in FLAMO, this class has RT and mean and/or std as parameters. Non-learnable...
-    # TODO: wgn_reverb is used in get_freq_response()
-    def __init__(
-        self,
-        n_M: int=1,
-        n_L: int=1,
-        fs: int=48000,
-        nfft: int=2**11,
-        RT: float=1.0,
-        mean: float=0.0,
-        std: float=1.0,
-        requires_grad: bool=False,
-        alias_decay_db: float=0.0,
-    ):
+# class wgn_reverb(VrRoom, dsp.DSP):
+#     # TODO: After modifying wgn_reverb in FLAMO, this class has RT and mean and/or std as parameters. Non-learnable...
+#     # TODO: wgn_reverb is used in get_freq_response()
+#     def __init__(
+#         self,
+#         n_M: int=1,
+#         n_L: int=1,
+#         fs: int=48000,
+#         nfft: int=2**11,
+#         RT: float=1.0,
+#         mean: float=0.0,
+#         std: float=1.0,
+#         requires_grad: bool=False,
+#         alias_decay_db: float=0.0,
+#     ):
         
-        VrRoom.__init__(
-            self,
-            n_M=n_M,
-            n_L=n_L,
-            fs=fs,
-            nfft=nfft,
-            alias_decay_db=alias_decay_db
-        )
+#         VrRoom.__init__(
+#             self,
+#             n_M=n_M,
+#             n_L=n_L,
+#             fs=fs,
+#             nfft=nfft,
+#             alias_decay_db=alias_decay_db
+#         )
 
-        pass
+#         pass
 
 # ==================================================================
 # =================== INFINITE IMPULSE RESPONSE ====================
@@ -418,9 +429,9 @@ class FDN(VrRoom, system.Series):
         n_L: int=1,
         fs: int=48000,
         nfft: int=2**11,
-        t60_DC: float=1.0,
-        t60_NY: float=1.0,
         alias_decay_db: float=0.0,
+        t60_DC: float=1.0,
+        t60_NY: float=1.0
     ):
         r"""
         Initializes the feedback delay network.
@@ -428,12 +439,15 @@ class FDN(VrRoom, system.Series):
             **Args**:
                 - n_M (int): Number of system microphones.
                 - n_L (int): Number of system loudspeakers.
-                - fs (int): Sampling frequency.
+                - fs (int): Sampling frequency [Hz].
                 - nfft (int): FFT size.
-                - t60_DC (float): Reverberation time at 0 Hz.
-                - t60_NY (float): Reverberation time at Nyquist frequency.
-                - alias_decay_db (float): Anti-time-aliasing decay in dB.
-                - requires_grad (bool): Whether the filter is learnable.
+                - alias_decay_db (float): Anti-time-aliasing decay [dB].
+                - t60_DC (float): Reverberation time at 0 Hz [s].
+                - t60_NY (float): Reverberation time at Nyquist frequency [s].
+
+            **Attributes**:
+                - t60_DC (float): Reverberation time at 0 Hz [s].
+                - t60_NY (float): Reverberation time at Nyquist frequency [s].
         """
 
         VrRoom.__init__(
@@ -476,11 +490,11 @@ class FDN(VrRoom, system.Series):
         Initializes the gains module of the unitary reverberator.
 
             **Args**:
-                - channels (int): Number of channels.
-                - g (torch.Tensor): Gain value.
+                - inputs (int): Number of input channels.
+                - outputs (int): Number of output channels.
 
             **Returns**:
-                dsp.Gain: Gains module.
+                - dsp.parallelGain: Gain processing module.
         """
 
         module = dsp.Gain(
@@ -498,11 +512,9 @@ class FDN(VrRoom, system.Series):
 
             **Args**:
                 - channels (int): Number of channels.
-                - nfft (int): FFT size.
-                - alias_decay_db (float): Anti-time-aliasing decay in dB.
 
             **Returns**:
-                system.Recursion: Recursive part of the feedback delay network.
+                - system.Recursion: Recursive part of the feedback delay network.
         """
 
         delays = dsp.parallelDelay(
@@ -558,11 +570,22 @@ class unitary_reverberator(VrRoom, system.Series):
         n_L: int=1,
         fs: int=48000,
         nfft: int=2**11,
-        t60: float=1.0,
         alias_decay_db: float=0.0,
+        t60: float=1.0
     ):
         r"""
         Initializes the unitary reverberator.
+
+            **Args**:
+                - n_M (int): Number of system microphones.
+                - n_L (int): Number of system loudspeakers.
+                - fs (int): Sampling frequency [Hz].
+                - nfft (int): FFT size.
+                - t60 (float): Reverberation time [s].
+                - alias_decay_db (float): Anti-time-aliasing decay [dB].
+
+            **Attributes**:
+                - t60 (float): Reverberation time [s].
         """
 
         VrRoom.__init__(
@@ -618,11 +641,9 @@ class unitary_reverberator(VrRoom, system.Series):
 
             **Args**:
                 - channels (int): Number of channels.
-                - nfft (int): FFT size.
-                - alias_decay_db (float): Anti-time-aliasing decay in dB.
 
             **Returns**:
-                - dsp.parallelDelay: Delays module.
+                - dsp.parallelDelay: Delay processing module.
                 - torch.Tensor: Delay lengths.
         """
 
@@ -647,7 +668,7 @@ class unitary_reverberator(VrRoom, system.Series):
                 - channels (int): Number of channels.
 
             **Returns**:
-                dsp.Matrix: Mixing matrix module.
+                - dsp.Matrix: Mixing matrix module.
         """
 
         module = dsp.Matrix(
@@ -672,7 +693,7 @@ class unitary_reverberator(VrRoom, system.Series):
                 - g (torch.Tensor): Gain value.
 
             **Returns**:
-                dsp.Gain: Gains module.
+                - dsp.Gain: Gains module.
         """
 
         module = dsp.parallelGain(
@@ -691,12 +712,12 @@ class unitary_reverberator(VrRoom, system.Series):
 
             **Args**:
                 - channels (int): Number of channels.
-                - D (dsp.parallelDelay): Delays module.
-                - C (dsp.Matrix): Mixing matrix module.
-                - G (dsp.Gain): Gains
+                - D (dsp.parallelDelay): Delay processing module.
+                - C (dsp.Matrix): Mixing-matrix processing module.
+                - G (dsp.Gain): Gain processing module
 
             **Returns**:
-                system.Recursion: Recursive part of the reverberator.
+                - system.Recursion: Recursive part of the reverberator.
         """
 
         identity = dsp.parallelGain(
@@ -721,11 +742,11 @@ class unitary_reverberator(VrRoom, system.Series):
             **Args**:
                 - channels (int): Number of channels.
                 - delay_lines (torch.Tensor): Delay lengths [samples].
-                - mixing_matrix (dsp.Matrix): Mixing matrix module.
+                - mixing_matrix (dsp.Matrix): Mixing-matrix processing module.
                 - gamma (torch.Tensor): Gain value.
 
             **Returns**:
-                dsp.Filter: Feedforward part of the reverberator.
+                - dsp.Filter: Feedforward part of the reverberator.
         """
 
         order = torch.max(delay_lines).int()

@@ -9,11 +9,11 @@ from flamo import system, dsp
 from flamo.functional import db2mag, mag2db
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from pyRES.full_system import RES
-from pyRES.physical_room import PhRoom_dataset
-from pyRES.virtual_room import *
-from pyRES.plots import *
-from pyRES.utils import *
+from PyRES.res import RES
+from PyRES.physical_room import PhRoom_dataset
+from PyRES.virtual_room import *
+from PyRES.plots import *
+from PyRES.utils import *
 
 torch.manual_seed(130297)
 
@@ -466,7 +466,7 @@ if __name__ == '__main__':
         if not os.path.isdir(args.train_dir):
             os.makedirs(args.train_dir)
     else:
-        args.train_dir = os.path.join('output', time.strftime("%Y%m%d-%H%M%S"))
+        args.train_dir = os.path.join('training_output', time.strftime("%Y%m%d-%H%M%S"))
         os.makedirs(args.train_dir)
 
     # save arguments 
