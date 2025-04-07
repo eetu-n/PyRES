@@ -29,7 +29,7 @@ def example_phase_cancellation(args) -> None:
 
     # Physical room
     room_dataset = './AA_dataset'      # Path to the dataset
-    room = 'LA-lab_1'                  # Path to the room impulse responses
+    room = 'Otala'                  # Path to the room impulse responses
     physical_room = PhRoom_dataset(
         fs=samplerate,
         nfft=nfft,
@@ -40,7 +40,7 @@ def example_phase_cancellation(args) -> None:
     _, n_mcs, n_lds, _ = physical_room.get_ems_rcs_number()
 
     # Virtual room
-    MR_n_modes = 150                   # Modal reverb number of modes
+    MR_n_modes = 120                   # Modal reverb number of modes
     MR_f_low = 50                      # Modal reverb lowest mode frequency
     MR_f_high = 450                    # Modal reverb highest mode frequency
     MR_t60 = 1.00                      # Modal reverb reverberation time
@@ -106,13 +106,14 @@ def example_phase_cancellation(args) -> None:
         samplerate = samplerate,
         freqs = MR_freqs
     )
-    trainer.register_criterion(criterion1, 1.5)
+    trainer.register_criterion(criterion1, 1.0)
+
     criterion2 = colorless_reverb(
         samplerate = samplerate,
         freq_points = nfft//2+1,
         freqs = MR_freqs
     )
-    trainer.register_criterion(criterion2, 0.5, requires_model=True)
+    trainer.register_criterion(criterion2, 0.2, requires_model=True)
     
     # -------------------- Train the model --------------------
     trainer.train(train_loader, valid_loader)
@@ -123,8 +124,8 @@ def example_phase_cancellation(args) -> None:
     
     # ------------------------- Plots -------------------------
     # TODO: think better about which plots per example
-    plot_evs(evs_init, evs_opt, samplerate, nfft, 20, 480)
-    plot_spectrograms(ir_init[:,0], ir_opt[:,0], samplerate, nfft=2**4, noverlap=2**3)
+    plot_evs(evs_init, evs_opt, samplerate, nfft, 40, 460)
+    plot_spectrograms(ir_init, ir_opt, samplerate, nfft=2**4, noverlap=2**3)
 
     # ---------------- Save the model parameters -------------
     res.save_state_to(directory='./model_states/')

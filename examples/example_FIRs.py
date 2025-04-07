@@ -30,7 +30,7 @@ def example_FIRs(args) -> None:
 
     # Physical room
     room_dataset = './AA_dataset'      # Path to the dataset
-    room = 'LA-lab_1'                  # Path to the room impulse responses
+    room = 'Otala'                  # Path to the room impulse responses
     physical_room = PhRoom_dataset(
         fs=samplerate,
         nfft=nfft,

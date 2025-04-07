@@ -18,6 +18,21 @@ def next_power_of_2(x):
     """
     return 1 if x == 0 else 2**(x - 1).bit_length()
 
+def expand_to_dimension(array: torch.Tensor, dim: int) -> torch.Tensor:
+    r"""
+    Expands the input array to a given dimension.
+
+        **Args**:
+            array (torch.Tensor): Input array.
+            dim (int): Dimension to expand to.
+
+        **Returns**:
+            torch.Tensor: Expanded array.
+    """
+    while len(array.shape) < dim:
+        array = array.unsqueeze(-1)
+    return array
+
 
 def limit_frequency_points(array: torch.Tensor, fs: int, nfft: int, f_interval: tuple[float, float]=None, f_subset: torch.Tensor=None) -> torch.Tensor:
     f"""

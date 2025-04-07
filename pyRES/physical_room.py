@@ -9,6 +9,8 @@ import torch.nn as nn
 import torchaudio
 # Flamo
 from flamo import dsp
+# pyRES
+from pyRES.metrics import energy_coupling
 
 
 # ==================================================================
@@ -97,10 +99,10 @@ class PhRoom(object):
                 OrderedDict: The system room impulse responses.
         """
         RIRs = OrderedDict()
-        RIRs.update({'H_SM': self.get_stg_to_mcs().param.clone().detach()})
-        RIRs.update({'H_SA': self.get_stg_to_aud().param.clone().detach()})
-        RIRs.update({'H_LM': self.get_lds_to_mcs().param.clone().detach()})
-        RIRs.update({'H_LA': self.get_lds_to_aud().param.clone().detach()})
+        RIRs.update({'h_SM': self.get_stg_to_mcs().param.clone().detach()})
+        RIRs.update({'h_SA': self.get_stg_to_aud().param.clone().detach()})
+        RIRs.update({'h_LM': self.get_lds_to_mcs().param.clone().detach()})
+        RIRs.update({'h_LA': self.get_lds_to_aud().param.clone().detach()})
         return RIRs
     
     def create_modules(self, rirs_SM: torch.Tensor, rirs_SA: torch.Tensor, rirs_LM: torch.Tensor, rirs_LA: torch.Tensor, rir_length: int) -> tuple[dsp.Filter, dsp.Filter, dsp.Filter, dsp.Filter]:
@@ -216,8 +218,8 @@ class PhRoom_dataset(PhRoom):
         Scans the room information for the number of emitters and receivers.
         """
         n_S = self.low_level_info['StageAndAudience']['StageEmitters']['Number']
-        n_M = self.low_level_info['ActiveAcousticEnhancementSystem']['SystemReceivers']['Number']
-        n_L = self.low_level_info['ActiveAcousticEnhancementSystem']['SystemEmitters']['Number']
+        n_M = self.low_level_info['AudioSetup']['SystemReceivers']['Number']
+        n_L = self.low_level_info['AudioSetup']['SystemEmitters']['Number']
         n_A = self.low_level_info['StageAndAudience']['AudienceReceivers']['MonochannelNumber']
 
         return n_S, n_M, n_L, n_A
@@ -233,7 +235,7 @@ class PhRoom_dataset(PhRoom):
                 tuple[OrderedDict[str, torch.Tensor], int]: Room impulse responses and their length.
         """
 
-        rir_info = self.low_level_info['Rirs']
+        rir_info = self.low_level_info['RoomImpulseResponses']
 
         rir_fs = rir_info['SampleRate_Hz']
         rir_length = rir_info['LengthInSamples']
@@ -244,13 +246,13 @@ class PhRoom_dataset(PhRoom):
         ds_dir = ds_dir.rstrip('/')
         path_root = f"{ds_dir}/data/{self.high_level_info['RoomDirectory']}/{rir_info['Directory']}"
 
-        path = f"{path_root}/{rir_info['StageAudienceRirs']['Directory']}"
+        path = f"{path_root}/{rir_info['StageEmitters-AudienceReceivers']['Directory']}"
         stg_to_aud = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_S, n_receivers=self.n_A, fs=rir_fs, n_samples=rir_length)
-        path = f"{path_root}/{rir_info['StageSystemRirs']['Directory']}"
+        path = f"{path_root}/{rir_info['StageEmitters-SystemReceivers']['Directory']}"
         stg_to_sys = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_S, n_receivers=self.n_M, fs=rir_fs, n_samples=rir_length)
-        path = f"{path_root}/{rir_info['SystemAudienceRirs']['Directory']}"
+        path = f"{path_root}/{rir_info['SystemEmitters-AudienceReceivers']['Directory']}"
         sys_to_aud = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_L, n_receivers=self.n_A, fs=rir_fs, n_samples=rir_length)
-        path = f"{path_root}/{rir_info['SystemSystemRirs']['Directory']}"
+        path = f"{path_root}/{rir_info['SystemEmitters-SystemReceivers']['Directory']}"
         sys_to_sys = self.__load_rir_matrix(path=f"{path}", n_sources=self.n_L, n_receivers=self.n_M, fs=rir_fs, n_samples=rir_length)
 
         h_SM, h_SA, h_LM, h_LA = self.create_modules(
@@ -275,7 +277,10 @@ class PhRoom_dataset(PhRoom):
                     w = torchaudio.transforms.Resample(fs, self.fs)(w)
                 matrix[:,i,j] = w.permute(1,0).squeeze()
 
-        # TODO: apply here normalization
+        # Energy normalization
+        ec = energy_coupling(rir=matrix, fs=self.fs, decay_interval='T30')
+        norm_factor = torch.max(torch.tensor([self.n_L, self.n_M])) * torch.sqrt(torch.median(ec))
+        matrix = matrix/norm_factor
 
         return matrix
     
@@ -283,9 +288,9 @@ class PhRoom_dataset(PhRoom):
 # ==================================================================
 # =================== WHITE GAUSSIAN NOISE CLASS ===================
 
-class PhRoom_rayleighDistributed(PhRoom):
+class PhRoom_wgn(PhRoom):
     r"""
-    Subclass of PhRoom that generates the room impulse responses of a shoebox room approximated to exponentially-decaying random sequences drawn by the Rayleigh distribution.
+    Subclass of PhRoom that generates the room impulse responses of a shoebox room approximate to late reverberation only computed with exponentially-decaying Gaussian white noise sequences with Rayleigh-distributed magnitude responses.
     """
     def __init__(
             self,

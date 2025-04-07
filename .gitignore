@@ -162,5 +162,7 @@ cython_debug/
 #.idea/
 
 /AA_Dataset
+/zenodo_dataset
 /output
 /model_states
+/dataRES
