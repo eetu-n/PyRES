@@ -11,7 +11,7 @@ De Bortoli, G. M. (2025). DataRES: Dataset for research on Reverberation Enhance
 
 # Installation
 
-PyRES relies on [flamo](https://github.com/gdalsanto/flamo) as a back-end.
+PyRES relies on [flamo](https://github.com/gdalsanto/flamo) as the back end.
 
 Further dependencies are:
 - pyfar
