@@ -20,8 +20,8 @@ Further dependencies are:
 
 To install via conda:
 ```shell
-conda create -n pyres python=3.10
-conda activate pyres
+conda create -n pyres-env python=3.10
+conda activate pyres-env
 pip install flamo
 conda install -c conda-forge libsndfile
 pip install pyfar pyrato seaborn
