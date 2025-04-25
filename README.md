@@ -9,25 +9,26 @@ De Bortoli, G. M. (2025). DataRES: Dataset for research on Reverberation Enhance
 
 ---
 
-# Tutorial
-
-Please refer to the example files for a tutorial on how to use this library.
-
----
-
 # Installation
 
-PyRES relies mostly on [flamo](https://github.com/gdalsanto/flamo) as a back-end.
-It is suggested to follow the installation procedure described in flamo's documentation.
+PyRES relies on [flamo](https://github.com/gdalsanto/flamo) as a back-end.
 
-Further PyRES dependencies are:
+Further dependencies are:
 - pyfar
 - pyrato
 - seaborn
 
-Please, use the following lines of code:
+To install via conda:
 ```shell
-pip install pyfar
-pip install pyrato
-pip install seaborn
+conda create -n pyres python=3.10
+conda activate pyres
+pip install flamo
+conda install -c conda-forge libsndfile
+pip install pyfar pyrato seaborn
 ```
+
+---
+
+# Tutorial
+
+Please refer to the example files for a tutorial on how to use this library.
