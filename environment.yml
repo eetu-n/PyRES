@@ -8,4 +8,5 @@ dependencies:
   - pyrato
   - seaborn
   - matplotlib
+  - pyqt5
   - pip
