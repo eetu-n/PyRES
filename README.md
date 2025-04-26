@@ -24,7 +24,7 @@ cd pyres
 Make sure you have Python installed on your system. The preferred Python version for PyRES is 3.10.
 
 3. Set up the environment
-- Automaticac setup:
+- Automaticac setup (it will use **Conda** if possible):
   - on **Windows**:
     ```shell
     bootstrap.bat
