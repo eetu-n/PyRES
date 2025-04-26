@@ -24,7 +24,7 @@ cd pyres
 Make sure you have Python installed on your system. The preferred Python version for PyRES is 3.10.
 
 3. Set up the environment
-- Automaticac setup (it will use **Conda** if possible):
+- Automatic setup (it will use **Conda** if possible):
   - on **Windows**:
     ```shell
     bootstrap.bat
@@ -34,18 +34,22 @@ Make sure you have Python installed on your system. The preferred Python version
     bash bootstrap.sh
     ```
 - Manual Setup:
-  - if you are using **Pip**:
+  - If you are using **Pip**:
     ```shell
     python3 -m venv pyres-env
     source pyres-env/bin/activate
     pip install --upgrade pip setuptools wheel
     pip install -r requirements.txt
     ```
-  - if you are using **Conda**:
+  - If you are using **Conda**:
     ```shell
     conda env create -f environment.yml
-    conda activate pyres-env
     ```
+    or
+    ```shell
+    conda env create -f environment.yml --name venv-name
+    ```
+    to also choose the name of the environment.
 
 ---
 
