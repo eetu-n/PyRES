@@ -9,5 +9,6 @@ dependencies:
     - flamo
     - pyfar
     - pyrato
+    - matplotlib
     - seaborn
     - pyqt5
