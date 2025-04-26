@@ -1,5 +1,5 @@
 # PyRES
-### Python library for Reverberation Enhancement Systems
+### A Python library for Reverberation Enhancement System development and simulation.
 
 ---
 
@@ -11,20 +11,18 @@ De Bortoli, G. M. (2025). DataRES: Dataset for research on Reverberation Enhance
 
 # Installation
 
-PyRES relies on [flamo](https://github.com/gdalsanto/flamo) as the back end.
-
-Further dependencies are:
-- pyfar
-- pyrato
-- seaborn
-
-To install via conda:
+For MacOS/Linux users:
 ```shell
-conda create -n pyres-env python=3.10
-conda activate pyres-env
-pip install flamo
-conda install -c conda-forge libsndfile
-pip install pyfar pyrato seaborn
+git clone https://github.com/yourusername/pyres.git
+cd pyres
+bash bootstrap.sh
+```
+
+For Windows users:
+```shell
+git clone https://github.com/yourusername/pyres.git
+cd pyres
+bootstrap.bat
 ```
 
 ---
