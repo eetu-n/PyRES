@@ -1,17 +1,39 @@
 @echo off
+setlocal enabledelayedexpansion
 
-echo Creating virtual environment 'pyres-env'...
-python -m venv pyres-env
+set ENV_NAME=pyres-env
 
-echo Activating virtual environment...
-call pyres-env\Scripts\activate
+REM Check if conda is available
+where conda >nul 2>nul
+if %errorlevel%==0 (
+    echo 🔍 Conda detected. Creating environment with conda...
 
-echo Upgrading pip...
-pip install --upgrade pip setuptools wheel
+    REM Check if environment already exists
+    conda env list | findstr /C:"%ENV_NAME%" >nul
+    if %errorlevel%==0 (
+        echo ⚠️ Conda environment '%ENV_NAME%' already exists. Skipping creation.
+    ) else (
+        conda create -n %ENV_NAME% python=3.10 -y
+    )
 
-echo Installing PyRES and dependencies...
-pip install -r requirements.txt
+    echo ✅ Environment created. Activate with: conda activate %ENV_NAME%
+    echo Once activated, install dependencies manually with: pip install -r requirements.txt
+) else (
+    echo 🔍 Conda not found. Falling back to python venv...
 
-echo Installation complete.
-echo To activate the environment later, run:
-echo call pyres-env\Scripts\activate
+    REM Create venv
+    python -m venv %ENV_NAME%
+
+    REM Activate venv
+    call %ENV_NAME%\Scripts\activate.bat
+
+    REM Upgrade pip tools
+    python -m pip install --upgrade pip setuptools wheel
+
+    REM Install dependencies
+    pip install -r requirements.txt
+
+    echo ✅ Environment setup complete. Activate with: call %ENV_NAME%\Scripts\activate.bat
+)
+
+endlocal
