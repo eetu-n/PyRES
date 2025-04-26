@@ -2,20 +2,19 @@
 name = "pyres"
 version = "0.1.0"
 description = "PyRES: A Python library for Reverberation Enhancement System development and simulation."
-authors = [
-  { name="Gian Marco De Bortoli", email="gian.debortoli@aalto.fi" }
-]
+authors = [{ name="Gian Marco De Bortoli", email="gian.debortoli@aalto.fi" }]
 license = { text = "MIT" }
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = [
-    "flamo",
-    "pyfar",
-    "pyrato",
-    "seaborn",
-    "matplotlib",
-    "pyqt5",
-]
+
+[project.dependencies]
+flamo = "*"
+pyfar = "*"
+pyrato = "*"
+seaborn = "*"
+matplotlib = "*"
+pyqt5 = "*"
+pysoundfile = "*"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
