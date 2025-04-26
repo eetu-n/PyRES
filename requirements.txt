@@ -4,3 +4,4 @@ pyrato
 seaborn
 matplotlib
 pyqt5
+pysoundfile
