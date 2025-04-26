@@ -25,7 +25,7 @@ if %errorlevel% NEQ 0 (
 )
 
 :: Create virtual environment
-python -m venv %ENV_NAME%
+python3 -m venv %ENV_NAME%
 
 :: Activate environment
 call %ENV_NAME%\Scripts\activate
