@@ -6,25 +6,14 @@ ENV_NAME="pyres-env"
 if command -v conda &> /dev/null
 then
     echo "Conda detected."
-    read -p "Would you like to create the environment using conda and environment.yml? (y/n): " use_conda
-
-    if [[ "$use_conda" == "y" || "$use_conda" == "Y" ]]; then
-        echo "Creating conda environment..."
-        conda env create -f environment.yml
-        echo "Done. To activate, run: conda activate $ENV_NAME"
-        exit 0
-    fi
+    echo "Creating conda environment..."
+    conda env create -f environment.yml
+    echo "Done. To activate, run: conda activate $ENV_NAME"
+    exit 0
 fi
 
 # Otherwise, fallback to python venv
-echo "Conda not used. Proceeding with python -m venv..."
-
-# Check if python is available
-if ! command -v python &> /dev/null
-then
-    echo "Python not found. Please install Python 3.10 first."
-    exit 1
-fi
+echo "Conda not found. Proceeding with python -m venv..."
 
 # Create virtual environment
 python3 -m venv $ENV_NAME
