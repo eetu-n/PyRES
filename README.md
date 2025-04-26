@@ -13,14 +13,14 @@ De Bortoli, G. M. (2025). DataRES: Dataset for research on Reverberation Enhance
 
 For MacOS/Linux users:
 ```shell
-git clone https://github.com/yourusername/pyres.git
+git clone https://github.com/GianMarcoDeBortoli/PyRES.git
 cd pyres
 bash bootstrap.sh
 ```
 
 For Windows users:
 ```shell
-git clone https://github.com/yourusername/pyres.git
+git clone https://github.com/GianMarcoDeBortoli/PyRES.git
 cd pyres
 bootstrap.bat
 ```
