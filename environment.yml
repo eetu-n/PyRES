@@ -1,12 +1,13 @@
 name: pyres-env
 channels:
   - conda-forge
+  - defaults
 dependencies:
   - python=3.10
-  - flamo
-  - pyfar
-  - pyrato
-  - seaborn
-  - matplotlib
-  - pyqt5
   - pip
+  - pip:
+    - flamo
+    - pyfar
+    - pyrato
+    - seaborn
+    - pyqt5
