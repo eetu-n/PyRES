@@ -22,7 +22,7 @@ if %errorlevel%==0 (
     echo 🔍 Conda not found. Falling back to python venv...
 
     REM Create venv
-    python -m venv %ENV_NAME%
+    python3 -m venv %ENV_NAME%
 
     REM Activate venv
     call %ENV_NAME%\Scripts\activate.bat
