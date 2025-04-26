@@ -36,7 +36,7 @@ Make sure you have Python installed on your system. The preferred Python version
 - Manual Setup:
   - if you are using **Pip**:
     ```shell
-    python3.10 -m venv pyres-env
+    python3 -m venv pyres-env
     source pyres-env/bin/activate
     pip install --upgrade pip setuptools wheel
     pip install -r requirements.txt
