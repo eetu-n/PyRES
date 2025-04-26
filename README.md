@@ -24,7 +24,7 @@ cd pyres
 Make sure you have Python installed on your system. The preferred Python version for PyRES is 3.10.
 
 3. Set up the environment
-- Automatic setup (it will use **Conda** if possible):
+- Automatic setup (recommended):
   - on **Windows**:
     ```shell
     bootstrap.bat
@@ -50,16 +50,6 @@ Make sure you have Python installed on your system. The preferred Python version
     conda env create -f environment.yml --name venv-name
     ```
     to also choose the name of the environment.
-
-### Note on libsndfile (System Library)
-
-If you created the working environment using **Pip** only (i.e., you answered "n" to the bootstrap script prompt or you have done a manual setup with **Pip**), you must manually install the system library `libsndfile`:
-
-- On macOS: Install it using [Homebrew](https://brew.sh/) with `brew install libsndfile`.
-- On Linux: Install it via apt with `sudo apt install libsndfile1`.
-- On Windows: you can download the libsndfile binaries from [libsndfile.org](http://www.mega-nerd.com/libsndfile/) or use a precompiled version like the one available from Gohlke’s website.
-
-If you do not install `libsndfile`, you will encounter errors when using audio functionality.
 
 ---
 
