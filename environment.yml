@@ -5,6 +5,7 @@ channels:
 dependencies:
   - python=3.10
   - pip
+  - libsndfile
   - pip:
     - flamo
     - pyfar
@@ -12,5 +13,3 @@ dependencies:
     - matplotlib
     - seaborn
     - pyqt5
-  - conda-forge:
-    - libsndfile
