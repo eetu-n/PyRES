@@ -5,24 +5,14 @@ set ENV_NAME=pyres-env
 where conda >nul 2>nul
 if %errorlevel%==0 (
     echo Conda detected.
-    set /p use_conda=Would you like to create the environment using conda and environment.yml? (y/n):
-
-    if /I "%use_conda%"=="y" (
-        echo Creating conda environment...
-        conda env create -f environment.yml
-        echo Done. To activate, run: conda activate %ENV_NAME%
-        exit /b 0
-    )
+    echo Creating conda environment...
+    conda env create -f environment.yml
+    echo Done. To activate, run: conda activate %ENV_NAME%
+    exit /b 0
 )
 
 :: Otherwise fallback to python venv
-echo Conda not used. Proceeding with python -m venv...
-
-where python >nul 2>nul
-if %errorlevel% NEQ 0 (
-    echo Python not found. Please install Python 3.10 first.
-    exit /b 1
-)
+echo Conda not found. Proceeding with python -m venv...
 
 :: Create virtual environment
 python3 -m venv %ENV_NAME%
