@@ -11,7 +11,7 @@ De Bortoli, G. M. (2025). DataRES: Dataset for research on Reverberation Enhance
 
 ## Installation
 
-Follow the instructions below to set up a working environment and to install **PyRES**.
+Follow the instructions below to install **PyRES** and to set up a working environment.
 
 1. Clone the repository
 ```shell
