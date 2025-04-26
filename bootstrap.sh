@@ -1,17 +1,35 @@
 #!/bin/bash
+set -e
 
-echo "Creating virtual environment 'pyres-env'..."
-python3.10 -m venv pyres-env
+ENV_NAME="pyres-env"
 
-echo "Activating virtual environment..."
-source pyres-env/bin/activate
+# Check if conda is available
+if command -v conda &> /dev/null
+then
+    echo "🔍 Conda detected. Creating environment with conda..."
 
-echo "Upgrading pip..."
-pip install --upgrade pip setuptools wheel
+    # Check if environment already exists
+    if conda env list | grep -q "$ENV_NAME"; then
+        echo "⚠️ Conda environment '$ENV_NAME' already exists. Skipping creation."
+    else
+        conda create -n $ENV_NAME python=3.10 -y
+    fi
 
-echo "Installing PyRES and dependencies..."
-pip install -r requirements.txt
+    echo "✅ Environment created. Activate with: conda activate $ENV_NAME"
+else
+    echo "🔍 Conda not found. Falling back to Python venv..."
 
-echo "Installation complete."
-echo "To activate the environment later, run:"
-echo "source pyres-env/bin/activate"
+    # Create local venv
+    python3 -m venv $ENV_NAME
+
+    # Activate venv
+    source $ENV_NAME/bin/activate
+
+    # Upgrade pip tools
+    pip install --upgrade pip setuptools wheel
+
+    # Install dependencies
+    pip install -r requirements.txt
+
+    echo "✅ Environment setup complete. Activate with: source $ENV_NAME/bin/activate"
+fi
