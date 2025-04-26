@@ -18,7 +18,9 @@ Follow the instructions below to install **PyRES** and to set up a working envir
 git clone https://github.com/GianMarcoDeBortoli/PyRES.git
 cd pyres
 ```
-2. Set up the environment
+2. Install Python 3.10:
+Make sure you have Python installed on your system. The preferred Python version for PyRES is 3.10.
+3. Set up the environment
 - Automaticac setup:
   - on **Windows**:
     ```shell
