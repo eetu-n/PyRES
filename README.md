@@ -9,24 +9,41 @@ De Bortoli, G. M. (2025). DataRES: Dataset for research on Reverberation Enhance
 
 ---
 
-# Installation
+## Installation
 
-For MacOS/Linux users:
+Follow the instructions below to set up a working environment and to install **PyRES**.
+
+1. Clone the repository
 ```shell
 git clone https://github.com/GianMarcoDeBortoli/PyRES.git
 cd pyres
-bash bootstrap.sh
 ```
-
-For Windows users:
-```shell
-git clone https://github.com/GianMarcoDeBortoli/PyRES.git
-cd pyres
-bootstrap.bat
-```
+2. Set up the environment
+- Automaticac setup:
+  - on **Windows**:
+    ```shell
+    bootstrap.bat
+    ```
+  - On **MacOS/Linux**:
+    ```shell
+    bash bootstrap.sh
+    ```
+- Manual Setup:
+  - if you are using **Pip**:
+    ```shell
+    python3.10 -m venv pyres-env
+    source pyres-env/bin/activate
+    pip install --upgrade pip setuptools wheel
+    pip install -r requirements.txt
+    ```
+  - if you are using **Conda**:
+    ```shell
+    conda env create -f environment.yml
+    conda activate pyres-env
+    ```
 
 ---
 
-# Tutorial
+## Tutorial
 
 Please refer to the example files for a tutorial on how to use this library.
