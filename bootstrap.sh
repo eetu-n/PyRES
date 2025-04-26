@@ -27,7 +27,7 @@ then
 fi
 
 # Create virtual environment
-python -m venv $ENV_NAME
+python3 -m venv $ENV_NAME
 
 # Activate environment
 source $ENV_NAME/bin/activate
