@@ -1,17 +1,13 @@
-[build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "pyres"
 version = "0.1.0"
 description = "PyRES: A Python library for Reverberation Enhancement System development and simulation."
 authors = [
-  { name="Your Name", email="your.email@example.com" }
+  { name="Gian Marco De Bortoli", email="gian.debortoli@aalto.fi" }
 ]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "flamo",
     "pyfar",
@@ -20,3 +16,7 @@ dependencies = [
     "matplotlib",
     "pyqt5",
 ]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
