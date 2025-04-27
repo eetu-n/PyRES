@@ -36,7 +36,7 @@ jobs:
 
       - name: Create virtual environment (Windows - conda)
         if: ${{ (matrix.method == 'conda') && (runner.os == 'Windows') }}
-        shell: cmd.exe {0}
+        shell: cmd.exe -l {0}
         run: conda env create -f environment.yml
 
       - name: Create virtual environment environment (MacOS/Linux - pip)
@@ -46,7 +46,7 @@ jobs:
 
       - name: Create virtual environment (Windows - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Windows') }}
-        shell: cmd.exe {0}
+        shell: cmd.exe -l {0}
         run: call .\bootstrap.bat
 
       - name: Run test example (conda)
