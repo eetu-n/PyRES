@@ -7,7 +7,6 @@ if %errorlevel%==0 (
     echo Conda detected.
     echo Creating conda environment...
     conda env create -f environment.yml
-    echo Done. To activate, run: conda activate %ENV_NAME%
     exit /b 0
 )
 

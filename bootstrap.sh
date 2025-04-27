@@ -11,7 +11,6 @@ then
     echo "Conda detected."
     echo "Creating conda environment..."
     conda env create -f environment.yml
-    echo "Done. To activate, run: conda activate $ENV_NAME"
     exit 0
 fi
 
@@ -31,7 +30,7 @@ python -m pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 
 # Install libsndfile depending on OS
-if [ "$OS_TYPE" == "Darwin" ]; then
+if [ "$OS_TYPE" == "macOS" ]; then
     echo "macOS detected."
     if ! brew list libsndfile &> /dev/null; then
         echo "Installing libsndfile with brew..."
