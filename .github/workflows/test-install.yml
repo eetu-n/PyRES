@@ -49,7 +49,7 @@ jobs:
           python -m pip install --upgrade pip
 
       - name: Create and activate environment (MacOS/Linux - pip)
-        if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
+        if: ${{ (matrix.method == 'pip') && (runner.os == 'Linux') }}
         run: |
           python -m venv pyres-env
           source pyres-env/bin/activate
@@ -67,7 +67,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run test example (MacOS/Linux)
-        if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
+        if: ${{ (matrix.method == 'pip') && (runner.os == 'linux') }}
         shell: bash -l {0}
         run: |
           source pyres-env/bin/activate
