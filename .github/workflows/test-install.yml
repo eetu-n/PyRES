@@ -37,10 +37,7 @@ jobs:
       - name: Create virtual environment (Windows - conda)
         if: ${{ (matrix.method == 'conda') && (runner.os == 'Windows') }}
         shell: cmd.exe {0}
-        run: |
-          echo Initializing Conda
-          call C:\Miniconda\Scripts\conda.exe init
-          call .\bootstrap.bat
+        run: conda env create -f environment.yml --name %ENV_NAME%
 
       - name: Create virtual environment environment (MacOS/Linux - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
@@ -56,7 +53,6 @@ jobs:
         if: matrix.method == 'conda'
         shell: bash -l {0}
         run: |
-          conda info --envs
           conda activate pyres-env
           python examples/E1_virtual-room.py
 
