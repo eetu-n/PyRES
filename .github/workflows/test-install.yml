@@ -11,48 +11,41 @@ jobs:
       matrix:
         os: [ubuntu-22.04, windows-latest, macos-14]
         method: [conda, pip]
+        python-version: ['3.10']
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: 3.10
+          python-version: ${{ matrix.python-version }}
 
       - name: Install Miniconda
         if: matrix.method == 'conda'
         uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
-          miniforge-variant: Mambaforge  # (Faster dependency resolution)
-          python-version: 3.10
+          python-version: ${{ matrix.python-version }}
 
       - name: Create and activate environment (conda)
         if: matrix.method == 'conda'
         shell: bash -l {0}
         run: |
-          mamba env create --name pyres-env --file environment.yml || conda env create --name pyres-env --file environment.yml
-          echo "conda activate pyres-env" >> ~/.bashrc
-          source ~/.bashrc
+          conda env create -f environment.yml
           conda activate pyres-env
-          python -m pip install --upgrade pip
-          which python
           python --version
-          pip list
+          python -m pip install --upgrade pip
 
       - name: Create and activate environment (pip)
         if: matrix.method == 'pip'
-        shell: bash -l {0}
         run: |
           python -m venv pyres-env
           source pyres-env/bin/activate || .\pyres-env\Scripts\activate
+          python --version
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          which python || where python
-          python --version
-          pip list
 
       - name: Run test example
         shell: bash -l {0}
