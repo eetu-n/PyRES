@@ -9,9 +9,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
         method: [pip, conda]
-        python-version: ['3.10']
+        python-version: ['3.10', '3.11', '3.12', '3.13']
 
     steps:
       - name: Checkout repository
@@ -28,7 +28,8 @@ jobs:
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
-
+      
+      # Create conda environment and install dependencies
       - name: Create virtual environment (MacOS/Linux - conda)
         if: ${{ (matrix.method == 'conda') && (runner.os != 'Windows') }}
         shell: bash -l {0}
@@ -37,8 +38,9 @@ jobs:
       - name: Create virtual environment (Windows - conda)
         if: ${{ (matrix.method == 'conda') && (runner.os == 'Windows') }}
         shell: cmd.exe -l {0}
-        run: conda env create -f environment.yml
-
+        run: call .\bootstrap.bat
+      
+      # Create pip environment and install dependencies
       - name: Create virtual environment environment (MacOS/Linux - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
         shell: bash -l {0}
@@ -49,6 +51,7 @@ jobs:
         shell: cmd.exe -l {0}
         run: call .\bootstrap.bat
 
+      # Run test with conda environment
       - name: Run test example (conda)
         if: ${{ (matrix.method == 'conda') && (runner.os != 'Windows') }}
         shell: bash -l {0}
@@ -63,6 +66,7 @@ jobs:
           conda activate pyres-env
           python examples/E1_virtual-room.py
 
+      # Run test with pip environment
       - name: Run test example (MacOS/Linux - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
         shell: bash -l {0}
