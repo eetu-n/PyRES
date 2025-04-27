@@ -69,6 +69,7 @@ jobs:
 
       - name: Create and activate environment (Windows - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Windows') }}
+        shell: cmd.exe {0}
         run: .\bootstrap.bat
 
       - name: Run test example (conda)
@@ -87,6 +88,7 @@ jobs:
 
       - name: Run test example (Windows - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Windows') }}
+        shell: cmd.exe {0}
         run: |
           .\pyres-env\Scripts\activate.bat
           python examples/E1_virtual-room.py
