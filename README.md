@@ -25,22 +25,15 @@ Make sure you have Python installed on your system. The preferred Python version
 
 3. Set up the environment
 - Automatic setup (recommended):
-  - on **Windows**:
-    ```shell
-    bootstrap.bat
-    ```
   - On **MacOS/Linux**:
     ```shell
     bash bootstrap.sh
     ```
-- Manual Setup:
-  - If you are using **Pip**:
+  - on **Windows**:
     ```shell
-    python3 -m venv pyres-env
-    source pyres-env/bin/activate
-    pip install --upgrade pip setuptools wheel
-    pip install -r requirements.txt
+    bootstrap.bat
     ```
+- Manual Setup:
   - If you are using **Conda**:
     ```shell
     conda env create -f environment.yml
@@ -50,6 +43,31 @@ Make sure you have Python installed on your system. The preferred Python version
     conda env create -f environment.yml --name venv-name
     ```
     to also choose the name of the environment.
+  - If you are using **Pip**:
+    - On **MacOS**:
+      ```shell
+      brew install libsndfile
+      python -m venv pyres-env
+      source pyres-env/bin/activate
+      echo "export DYLD_LIBRARY_PATH=$(brew --prefix libsndfile)/lib:$DYLD_LIBRARY_PATH" >> pyres-env/bin/activate
+      python -m pip install --upgrade pip
+      pip install -r requirements.txt
+      ```
+    - On **Linux**:
+      ```shell
+      sudo apt-get update && sudo apt-get install -y libsndfile1
+      python -m venv pyres-env
+      source pyres-env/bin/activate
+      python -m pip install --upgrade pip
+      pip install -r requirements.txt
+      ```
+    - On **Windows**:
+      ```shell
+      python -m venv pyres-env
+      .\pyres-env\Scripts\activate.bat
+      python -m pip install --upgrade pip
+      pip install -r requirements.txt
+      ```
 
 ---
 
