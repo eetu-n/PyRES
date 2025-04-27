@@ -30,7 +30,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install libsndfile
-          # echo "export DYLD_LIBRARY_PATH=$(brew --prefix libsndfile)/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "export DYLD_LIBRARY_PATH=$(brew --prefix libsndfile)/lib:$DYLD_LIBRARY_PATH"
 
       - name: Install Miniconda
         if: matrix.method == 'conda'
@@ -56,7 +56,7 @@ jobs:
           python --version
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          export DYLD_LIBRARY_PATH=$(brew --prefix libsndfile)/lib:$DYLD_LIBRARY_PATH
+          # export DYLD_LIBRARY_PATH=$(brew --prefix libsndfile)/lib:$DYLD_LIBRARY_PATH
 
       - name: Create and activate environment (Linux - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Linux') }}
@@ -81,7 +81,7 @@ jobs:
         shell: bash -l {0}
         run: |
           source pyres-env/bin/activate
-          export DYLD_LIBRARY_PATH=$(brew --prefix libsndfile)/lib:$DYLD_LIBRARY_PATH
+          # export DYLD_LIBRARY_PATH=$(brew --prefix libsndfile)/lib:$DYLD_LIBRARY_PATH
           python examples/E1_virtual-room.py
 
       - name: Run test example (Linux)
