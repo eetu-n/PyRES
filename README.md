@@ -19,9 +19,9 @@ git clone https://github.com/GianMarcoDeBortoli/PyRES.git
 cd pyres
 ```
 
-2. Install Python 3.10:
+2. Install Python:
 
-Make sure you have Python installed on your system. The preferred Python version for PyRES is 3.10.
+Make sure you have Python version >=3.10 installed on your system.
 
 3. Set up the environment
 - Automatic setup (recommended):
