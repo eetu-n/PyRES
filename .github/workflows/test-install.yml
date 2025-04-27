@@ -22,15 +22,15 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install libsndfile (Ubuntu)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libsndfile1
+      # - name: Install libsndfile (Ubuntu)
+      #   if: runner.os == 'Linux'
+      #   run: sudo apt-get update && sudo apt-get install -y libsndfile1
 
-      - name: Install libsndfile (MacOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install libsndfile
-          echo "export DYLD_LIBRARY_PATH=$(brew --prefix)/lib:\$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+      # - name: Install libsndfile (MacOS)
+      #   if: runner.os == 'macOS'
+      #   run: |
+      #     brew install libsndfile
+      #     echo "export DYLD_LIBRARY_PATH=$(brew --prefix)/lib:\$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Install Miniconda
         if: matrix.method == 'conda'
@@ -67,7 +67,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run test example (MacOS/Linux)
-        if: ${{ (matrix.method == 'pip') && (runner.os == 'Linux') }}
+        if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
         shell: bash -l {0}
         run: |
           source pyres-env/bin/activate
@@ -78,5 +78,4 @@ jobs:
         shell: bash -l {0}
         run: |
           .\pyres-env\Scripts\activate.bat
-          python -c "import torch; print(torch.__version__)"
           python examples/E1_virtual-room.py
