@@ -9,7 +9,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-22.04, windows-latest, macos-14]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         method: [conda, pip]
         python-version: ['3.10']
 
