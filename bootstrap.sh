@@ -1,12 +1,17 @@
 #!/bin/bash
 
 ENV_NAME="pyres-env"
+USE_CONDA=true
+
+# If an argument is given and is "no-conda", force venv
+if [ "$1" == "no-conda" ]; then
+    USE_CONDA=false
+fi
 
 # Detect OS
 OS_TYPE="$(uname)"
 
-# Check if conda is available
-if command -v conda &> /dev/null
+if $USE_CONDA && command -v conda &> /dev/null
 then
     echo "Conda detected."
     echo "Creating conda environment..."
@@ -15,22 +20,16 @@ then
 fi
 
 # Otherwise, fallback to python venv
-echo "Conda not found. Proceeding with python -m venv..."
+echo "Proceeding with python -m venv..."
 
-# Create virtual environment
-python -m venv $ENV_NAME
-
-# Activate environment
+python3 -m venv $ENV_NAME
 source $ENV_NAME/bin/activate
-
-# Upgrade pip and setuptools
 python -m pip install --upgrade pip setuptools wheel
-
-# Install dependencies
 python -m pip install -r requirements.txt
 
-# Install libsndfile depending on OS
+# OS-specific libsndfile installation
 if [ "$OS_TYPE" == "Darwin" ]; then
+    ...
     echo "macOS detected."
     if ! brew list libsndfile &> /dev/null; then
         echo "Installing libsndfile with brew..."

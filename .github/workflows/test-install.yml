@@ -65,7 +65,7 @@ jobs:
       - name: Create virtual environment environment (MacOS/linux - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
         shell: bash -l {0}
-        run: bash bootstrap.sh
+        run: bash bootstrap.sh no-conda
 
       - name: Create virtual environment (Windows - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Windows') }}
