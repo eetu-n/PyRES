@@ -37,9 +37,12 @@ jobs:
       - name: Create virtual environment (Windows - conda)
         if: ${{ (matrix.method == 'conda') && (runner.os == 'Windows') }}
         shell: cmd.exe {0}
-        run: call .\bootstrap.bat
+        run: |
+          echo Initializing Conda
+          call C:\Miniconda\Scripts\conda.exe init
+          call .\bootstrap.bat
 
-      - name: Create virtual environment environment (MacOS/linux - pip)
+      - name: Create virtual environment environment (MacOS/Linux - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
         shell: bash -l {0}
         run: bash bootstrap.sh no-conda
