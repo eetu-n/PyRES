@@ -26,11 +26,11 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libsndfile1
 
-      # - name: Install libsndfile (MacOS)
-      #   if: runner.os == 'macOS'
-      #   run: |
-      #     brew install libsndfile
-      #     echo "export DYLD_LIBRARY_PATH=$(brew --prefix)/lib:\$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+      - name: Install libsndfile (MacOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install libsndfile
+          # echo "export DYLD_LIBRARY_PATH=$(brew --prefix)/lib:\$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Install Miniconda
         if: matrix.method == 'conda'
