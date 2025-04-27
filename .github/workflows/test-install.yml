@@ -42,7 +42,11 @@ jobs:
         if: matrix.method == 'pip'
         run: |
           python -m venv pyres-env
-          source pyres-env/bin/activate || .\pyres-env\Scripts\activate
+          if [[ ${{ runner.os }} == 'Windows' ]]; then
+            .\pyres-env\Scripts\activate
+          else
+            source pyres-env/bin/activate
+          fi
           python --version
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -50,5 +54,9 @@ jobs:
       - name: Run test example
         shell: bash -l {0}
         run: |
-          source pyres-env/bin/activate || .\pyres-env\Scripts\activate
+          if [[ ${{ runner.os }} == 'Windows' ]]; then
+            .\pyres-env\Scripts\activate
+          else
+            source pyres-env/bin/activate
+          fi
           python examples/E1_virtual-room.py
