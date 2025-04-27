@@ -18,10 +18,10 @@ echo Conda not found. Proceeding with python -m venv...
 python3 -m venv %ENV_NAME%
 
 :: Activate environment
-call %ENV_NAME%\Scripts\activate
+.\%ENV_NAME%\Scripts\activate.bat
 
 :: Upgrade pip and setuptools
-pip install --upgrade pip setuptools wheel
+python -m pip install --upgrade pip setuptools wheel
 
 :: Install dependencies
 pip install -r requirements.txt

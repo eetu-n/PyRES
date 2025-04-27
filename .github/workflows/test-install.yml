@@ -35,32 +35,40 @@ jobs:
         run: |
           conda env create -f environment.yml
 
-      - name: Create and activate environment (MacOS - pip)
-        if: ${{ (matrix.method == 'pip') && (runner.os == 'macOS') }}
-        run: |
-          brew install libsndfile
-          python -m venv pyres-env
-          source pyres-env/bin/activate
-          echo "export DYLD_LIBRARY_PATH=$(brew --prefix libsndfile)/lib:$DYLD_LIBRARY_PATH" >> pyres-env/bin/activate
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      # - name: Create and activate environment (MacOS - pip)
+      #   if: ${{ (matrix.method == 'pip') && (runner.os == 'macOS') }}
+      #   run: |
+      #     brew install libsndfile
+      #     python -m venv pyres-env
+      #     source pyres-env/bin/activate
+      #     echo "export DYLD_LIBRARY_PATH=$(brew --prefix libsndfile)/lib:$DYLD_LIBRARY_PATH" >> pyres-env/bin/activate
+      #     python -m pip install --upgrade pip setuptools wheel
+      #     pip install -r requirements.txt
 
-      - name: Create and activate environment (Linux - pip)
-        if: ${{ (matrix.method == 'pip') && (runner.os == 'Linux') }}
-        run: |
-          sudo apt-get update && sudo apt-get install -y libsndfile1
-          python -m venv pyres-env
-          source pyres-env/bin/activate
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      # - name: Create and activate environment (Linux - pip)
+      #   if: ${{ (matrix.method == 'pip') && (runner.os == 'Linux') }}
+      #   run: |
+      #     sudo apt-get update && sudo apt-get install -y libsndfile1
+      #     python -m venv pyres-env
+      #     source pyres-env/bin/activate
+      #     python -m pip install --upgrade pip setuptools wheel
+      #     pip install -r requirements.txt
+
+      # - name: Create and activate environment (Windows - pip)
+      #   if: ${{ (matrix.method == 'pip') && (runner.os == 'Windows') }}
+      #   run: |
+      #     python -m venv pyres-env
+      #     .\pyres-env\Scripts\activate.bat
+      #     python -m pip install --upgrade pip setuptools wheel
+      #     pip install -r requirements.txt
+
+      - name: Create and activate environment (MacOS - pip)
+        if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
+        run: bash bootstrap.sh
 
       - name: Create and activate environment (Windows - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Windows') }}
-        run: |
-          python -m venv pyres-env
-          .\pyres-env\Scripts\activate.bat
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: bootstrap.bat
 
       - name: Run test example (conda)
         if: matrix.method == 'conda'
