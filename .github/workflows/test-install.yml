@@ -32,12 +32,16 @@ jobs:
       - name: Create virtual environment (MacOS/Linux - conda)
         if: ${{ (matrix.method == 'conda') && (runner.os != 'Windows') }}
         shell: bash -l {0}
-        run: bash bootstrap.sh
+        run: |
+          bash bootstrap.sh
+          conda info --envs
 
       - name: Create virtual environment (Windows - conda)
         if: ${{ (matrix.method == 'conda') && (runner.os == 'Windows') }}
         shell: cmd.exe {0}
-        run: .\bootstrap.bat
+        run: |
+          .\bootstrap.bat
+          conda info --envs
 
       - name: Create virtual environment environment (MacOS/linux - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}

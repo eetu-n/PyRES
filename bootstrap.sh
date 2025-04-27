@@ -15,7 +15,7 @@ if $USE_CONDA && command -v conda &> /dev/null
 then
     echo "Conda detected."
     echo "Creating conda environment..."
-    conda env create -f environment.yml
+    conda env create -f environment.yml --name $ENV_NAME
     exit 0
 fi
 
