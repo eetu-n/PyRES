@@ -6,7 +6,7 @@ where conda >nul 2>nul
 if %errorlevel%==0 (
     echo Conda detected.
     echo Creating conda environment...
-    conda env create -f environment.yml --name pyres-env
+    conda env create -f environment.yml
     exit /b 0
 )
 

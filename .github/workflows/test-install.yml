@@ -40,8 +40,8 @@ jobs:
         if: ${{ (matrix.method == 'conda') && (runner.os == 'Windows') }}
         shell: cmd.exe {0}
         run: |
-          .\bootstrap.bat
           conda info --envs
+          .\bootstrap.bat
 
       - name: Create virtual environment environment (MacOS/linux - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
