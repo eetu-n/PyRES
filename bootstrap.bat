@@ -1,6 +1,10 @@
 @echo off
 set ENV_NAME=pyres-env
 
+:: Check if Conda is available by explicitly setting the path
+set CONDA_PATH=C:\Miniconda\Scripts
+set PATH=%CONDA_PATH%;%PATH%
+
 :: Check if conda is available
 conda info >nul 2>nul
 if %errorlevel%==0 (
