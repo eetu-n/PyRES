@@ -14,10 +14,10 @@ if %errorlevel%==0 (
 echo Conda not found. Proceeding with python -m venv...
 
 :: Create virtual environment
-python3 -m venv %ENV_NAME%
+python -m venv %ENV_NAME%
 
 :: Activate environment
-.\%ENV_NAME%\Scripts\activate.bat
+call .\%ENV_NAME%\Scripts\activate.bat
 
 :: Upgrade pip and setuptools
 python -m pip install --upgrade pip setuptools wheel
