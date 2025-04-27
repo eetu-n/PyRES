@@ -23,6 +23,6 @@ python3 -m venv %ENV_NAME%
 python -m pip install --upgrade pip setuptools wheel
 
 :: Install dependencies
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
 echo Done. To activate the environment, run: call %ENV_NAME%\Scripts\activate
