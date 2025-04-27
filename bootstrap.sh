@@ -18,7 +18,7 @@ fi
 echo "Conda not found. Proceeding with python -m venv..."
 
 # Create virtual environment
-python3 -m venv $ENV_NAME
+python -m venv $ENV_NAME
 
 # Activate environment
 source $ENV_NAME/bin/activate
