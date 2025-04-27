@@ -22,16 +22,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # - name: Install libsndfile (Ubuntu)
-      #   if: runner.os == 'Linux'
-      #   run: sudo apt-get update && sudo apt-get install -y libsndfile1
-
-      # - name: Install libsndfile (MacOS)
-      #   if: runner.os == 'macOS'
-      #   run: |
-      #     brew install libsndfile
-      #     # echo "DYLD_LIBRARY_PATH=$(brew --prefix libsndfile)/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
-
       - name: Install Miniconda
         if: matrix.method == 'conda'
         uses: conda-incubator/setup-miniconda@v3
@@ -44,9 +34,6 @@ jobs:
         shell: bash -l {0}
         run: |
           conda env create -f environment.yml
-          conda activate pyres-env
-          python --version
-          python -m pip install --upgrade pip
 
       - name: Create and activate environment (MacOS - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os == 'macOS') }}
@@ -75,14 +62,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run test example (MacOS/Linux)
+      - name: Run test example (conda)
+        if: matrix.method == 'conda'
+        shell: bash -l {0}
+        run: |
+          conda activate pyres-env
+          python examples/E1_virtual-room.py
+
+      - name: Run test example (MacOS/Linux - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
         shell: bash -l {0}
         run: |
           source pyres-env/bin/activate
           python examples/E1_virtual-room.py
 
-      - name: Run test example (Windows)
+      - name: Run test example (Windows - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Windows') }}
         shell: bash -l {0}
         run: |
