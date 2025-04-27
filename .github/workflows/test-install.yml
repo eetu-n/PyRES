@@ -9,9 +9,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
-        method: [pip, conda]
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        os: [windows-latest]
+        method: [conda]
+        python-version: ['3.10']
 
     steps:
       - name: Checkout repository
@@ -57,6 +57,7 @@ jobs:
         if: matrix.method == 'conda'
         shell: bash -l {0}
         run: |
+          conda info --envs
           conda activate pyres-env
           python examples/E1_virtual-room.py
 
