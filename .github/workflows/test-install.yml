@@ -77,7 +77,15 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run test example (MacOS/Linux)
-        if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
+        if: ${{ (matrix.method == 'pip') && (runner.os == 'macOS') }}
+        shell: bash -l {0}
+        run: |
+          source pyres-env/bin/activate
+          export DYLD_LIBRARY_PATH=$(brew --prefix libsndfile)/lib:$DYLD_LIBRARY_PATH
+          python examples/E1_virtual-room.py
+
+      - name: Run test example (Linux)
+        if: ${{ (matrix.method == 'pip') && (runner.os == 'Linux') }}
         shell: bash -l {0}
         run: |
           source pyres-env/bin/activate
