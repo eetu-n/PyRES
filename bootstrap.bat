@@ -1,9 +1,12 @@
 @echo off
 set ENV_NAME=pyres-env
 
-:: Check if Conda is available by explicitly setting the path
-set CONDA_PATH=C:\Miniconda\Scripts
-set PATH=%CONDA_PATH%;%PATH%
+:: Explicitly set Conda Path (adjust if Miniconda is installed in a different location)
+set CONDA_PATH=C:\Miniconda
+set PATH=%CONDA_PATH%\Scripts;%PATH%
+
+:: Initialize Conda (ensure conda is available in the shell)
+call %CONDA_PATH%\Scripts\activate.bat
 
 :: Check if conda is available
 conda info >nul 2>nul
