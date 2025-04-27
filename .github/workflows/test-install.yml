@@ -68,7 +68,7 @@ jobs:
 
       - name: Create and activate environment (Windows - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Windows') }}
-        run: bootstrap.bat
+        run: call bootstrap.bat
 
       - name: Run test example (conda)
         if: matrix.method == 'conda'
