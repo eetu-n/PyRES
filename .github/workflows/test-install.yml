@@ -19,31 +19,33 @@ jobs:
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: 3.10
 
-      - name: Install Miniconda (only if conda)
+      - name: Install Miniconda
         if: matrix.method == 'conda'
         uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
           python-version: 3.10
-          environment-file: environment.yml
-          activate-environment: pyres-env
 
-      - name: Install additional pip dependencies (only if conda)
+      - name: Create and activate environment (conda)
         if: matrix.method == 'conda'
+        shell: bash -l {0}
         run: |
-          pip install flamo pyfar pyrato seaborn matplotlib pyqt5
+          conda env create -f environment.yml
+          conda activate pyres-env
+          python -m pip install --upgrade pip
 
-      - name: Set up venv and install pip dependencies (only if pip)
+      - name: Create and activate environment (pip)
         if: matrix.method == 'pip'
         run: |
           python -m venv pyres-env
-          . pyres-env/bin/activate
-          pip install --upgrade pip
+          source pyres-env/bin/activate || .\pyres-env\Scripts\activate
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Run test example
+        shell: bash -l {0}
         run: |
-          . pyres-env/bin/activate
+          source pyres-env/bin/activate || .\pyres-env\Scripts\activate
           python examples/E1_virtual-room.py
