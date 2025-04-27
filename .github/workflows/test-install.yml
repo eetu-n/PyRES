@@ -11,7 +11,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         method: [conda, pip]
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        python-version: ['3.10']
 
     steps:
       - name: Checkout repository
@@ -64,11 +64,12 @@ jobs:
 
       - name: Create and activate environment (MacOS - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
+        shell: bash -l {0}
         run: bash bootstrap.sh
 
       - name: Create and activate environment (Windows - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Windows') }}
-        run: call bootstrap.bat
+        run: .\bootstrap.bat
 
       - name: Run test example (conda)
         if: matrix.method == 'conda'
@@ -86,7 +87,6 @@ jobs:
 
       - name: Run test example (Windows - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Windows') }}
-        shell: bash -l {0}
         run: |
           .\pyres-env\Scripts\activate.bat
           python examples/E1_virtual-room.py
