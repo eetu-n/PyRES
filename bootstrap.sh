@@ -30,7 +30,7 @@ python -m pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 
 # Install libsndfile depending on OS
-if [ "$OS_TYPE" == "macOS" ]; then
+if [ "$OS_TYPE" == "Darwin" ]; then
     echo "macOS detected."
     if ! brew list libsndfile &> /dev/null; then
         echo "Installing libsndfile with brew..."
