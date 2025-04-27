@@ -36,13 +36,8 @@ Make sure you have Python installed on your system. The preferred Python version
 - Manual Setup:
   - If you are using **Conda**:
     ```shell
-    conda env create -f environment.yml
+    conda env create -f environment.yml --name pyres-env
     ```
-    or
-    ```shell
-    conda env create -f environment.yml --name venv-name
-    ```
-    to also choose the name of the environment.
   - If you are using **Pip**:
     - On **MacOS**:
       ```shell
