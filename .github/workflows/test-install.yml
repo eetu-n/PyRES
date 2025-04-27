@@ -65,7 +65,6 @@ jobs:
           python --version
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          python -c "import torch; print(torch.__version__)"
 
       - name: Run test example (MacOS/Linux)
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Linux') }}
@@ -79,4 +78,5 @@ jobs:
         shell: bash -l {0}
         run: |
           .\pyres-env\Scripts\activate
+          python -c "import torch; print(torch.__version__)"
           python examples/E1_virtual-room.py
