@@ -2,11 +2,11 @@
 set ENV_NAME=pyres-env
 
 :: Check if conda is available
-where conda >nul 2>nul
+conda info >nul 2>nul
 if %errorlevel%==0 (
     echo Conda detected.
     echo Creating conda environment...
-    conda env create -f environment.yml
+    conda env create -f environment.yml --name %ENV_NAME%
     exit /b 0
 )
 
