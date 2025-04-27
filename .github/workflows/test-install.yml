@@ -65,6 +65,7 @@ jobs:
           python --version
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          python -c "import torch; print(torch.__version__)"
 
       - name: Run test example (MacOS/Linux)
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Linux') }}
