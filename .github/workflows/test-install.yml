@@ -61,7 +61,7 @@ jobs:
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Windows') }}
         run: |
           python -m venv pyres-env
-          .\pyres-env\Scripts\activate
+          .\pyres-env\Scripts\activate.bat
           python --version
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -77,6 +77,6 @@ jobs:
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Windows') }}
         shell: bash -l {0}
         run: |
-          .\pyres-env\Scripts\activate
+          .\pyres-env\Scripts\activate.bat
           python -c "import torch; print(torch.__version__)"
           python examples/E1_virtual-room.py
