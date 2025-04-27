@@ -25,13 +25,13 @@ Make sure you have Python installed on your system. The preferred Python version
 
 3. Set up the environment
 - Automatic setup (recommended):
-  - On **MacOS/Linux**:
+  - On **MacOS/Linux** (bash):
     ```shell
     bash bootstrap.sh
     ```
-  - on **Windows**:
+  - on **Windows** (cmd):
     ```shell
-    bootstrap.bat
+    call bootstrap.bat
     ```
 - Manual Setup:
   - If you are using **Conda**:
@@ -39,7 +39,7 @@ Make sure you have Python installed on your system. The preferred Python version
     conda env create -f environment.yml --name pyres-env
     ```
   - If you are using **Pip**:
-    - On **MacOS**:
+    - On **MacOS** (bash):
       ```shell
       brew install libsndfile
       python -m venv pyres-env
@@ -48,7 +48,7 @@ Make sure you have Python installed on your system. The preferred Python version
       python -m pip install --upgrade pip
       pip install -r requirements.txt
       ```
-    - On **Linux**:
+    - On **Linux** (bash):
       ```shell
       sudo apt-get update && sudo apt-get install -y libsndfile1
       python -m venv pyres-env
@@ -56,7 +56,7 @@ Make sure you have Python installed on your system. The preferred Python version
       python -m pip install --upgrade pip
       pip install -r requirements.txt
       ```
-    - On **Windows**:
+    - On **Windows** (cmd):
       ```shell
       python -m venv pyres-env
       .\pyres-env\Scripts\activate.bat
