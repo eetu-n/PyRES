@@ -38,15 +38,20 @@ jobs:
           python --version
           python -m pip install --upgrade pip
 
-      - name: Create and activate environment (pip)
-        if: matrix.method == 'pip'
+      - name: Create and activate environment (MacOS/Linux - pip)
+        if: (matrix.method == 'pip' && runner.os != 'windows-latest')
         run: |
           python -m venv pyres-env
-          if ('${{ runner.os }}' == 'Windows'); then
-            .\pyres-env\Scripts\activate
-          else
-            source pyres-env/bin/activate
-          fi
+          source pyres-env/bin/activate
+          python --version
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create and activate environment (Windows - pip)
+        if: (matrix.method == 'pip' && runner.os == 'windows-latest')
+        run: |
+          python -m venv pyres-env
+          .\pyres-env\Scripts\activate
           python --version
           python -m pip install --upgrade pip
           pip install -r requirements.txt
