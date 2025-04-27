@@ -50,8 +50,15 @@ jobs:
         run: call .\bootstrap.bat
 
       - name: Run test example (conda)
-        if: matrix.method == 'conda'
+        if: ${{ (matrix.method == 'conda') && (runner.os != 'Windows') }}
         shell: bash -l {0}
+        run: |
+          conda activate pyres-env
+          python examples/E1_virtual-room.py
+
+      - name: Run test example (conda)
+        if: ${{ (matrix.method == 'conda') && (runner.os == 'Windows') }}
+        shell: cmd.exe -l {0}
         run: |
           conda activate pyres-env
           python examples/E1_virtual-room.py
