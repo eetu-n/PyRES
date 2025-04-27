@@ -29,7 +29,7 @@ jobs:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
 
-      - name: Create and activate environment (conda)
+      - name: Create virtual environment environment (conda)
         if: matrix.method == 'conda'
         shell: bash -l {0}
         run: |
@@ -62,12 +62,12 @@ jobs:
       #     python -m pip install --upgrade pip setuptools wheel
       #     pip install -r requirements.txt
 
-      - name: Create and activate environment (MacOS - pip)
+      - name: Create virtual environment environment (MacOS/linux - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
         shell: bash -l {0}
         run: bash bootstrap.sh
 
-      - name: Create and activate environment (Windows - pip)
+      - name: Create virtual environment (Windows - pip)
         if: ${{ (matrix.method == 'pip') && (runner.os == 'Windows') }}
         shell: cmd.exe {0}
         run: .\bootstrap.bat
