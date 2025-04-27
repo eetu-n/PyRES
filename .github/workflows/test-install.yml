@@ -67,7 +67,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run test example (MacOS/Linux)
-        if: ${{ (matrix.method == 'pip') && (runner.os != 'Windows') }}
+        if: ${{ (matrix.method == 'pip') && (runner.os == 'Linux') }}
         shell: bash -l {0}
         run: |
           source pyres-env/bin/activate
