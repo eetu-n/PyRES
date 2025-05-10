@@ -18,12 +18,12 @@ from PyRES.metrics import energy_coupling, direct_to_reverb_ratio
 # ==================================================================
 # ========================== PHYSICAL ROOM =========================
 
-def plot_room_setup(room) -> None:
+def plot_room_setup(stg: torch.Tensor, mcs: torch.Tensor, lds: torch.Tensor, aud: torch.Tensor) -> None:
 
-    stage = torch.tensor(room.low_level_info['StageAndAudience']['StageEmitters']['Position_m'])
-    loudspeakers = torch.tensor(room.low_level_info['AudioSetup']['SystemEmitters']['Position_m'])
-    microphones = torch.tensor(room.low_level_info['AudioSetup']['SystemReceivers']['Position_m'])
-    audience = torch.tensor(room.low_level_info['StageAndAudience']['AudienceReceivers']['MonochannelPosition_m'])
+    stg = torch.tensor(stg)
+    mcs = torch.tensor(mcs)
+    lds = torch.tensor(lds)
+    aud = torch.tensor(aud)
 
     plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
 
@@ -32,10 +32,10 @@ def plot_room_setup(room) -> None:
 
     # 3D Plot
     ax_3d = fig.add_subplot(111, projection='3d')
-    ax_3d.scatter(*zip(*stage), marker='s', color='g', s=100, label='Stage emitters')
-    ax_3d.scatter(*zip(*loudspeakers), marker='s', color='b', s=100, label='System loudspeakers')
-    ax_3d.scatter(*zip(*microphones), marker='o', color='r', s=100, label='System microphones')
-    ax_3d.scatter(*zip(*audience), marker='o', color='y', s=100, label='Audience receivers')
+    ax_3d.scatter(*zip(*stg), marker='s', color='g', s=100, label='Stage emitters')
+    ax_3d.scatter(*zip(*mcs), marker='o', color='r', s=100, label='System microphones')
+    ax_3d.scatter(*zip(*lds), marker='s', color='b', s=100, label='System loudspeakers')
+    ax_3d.scatter(*zip(*aud), marker='o', color='y', s=100, label='Audience receivers')
 
     # Labels
     ax_3d.set_xlabel('x in meters', labelpad=15)
@@ -44,9 +44,9 @@ def plot_room_setup(room) -> None:
     ax_3d.set_zlim(0,)
 
     # Equal scaling
-    room_x = torch.max(torch.cat((stage[:, 0], loudspeakers[:, 0], microphones[:, 0], audience[:, 0]))).item() - torch.min(torch.cat((stage[:, 0], loudspeakers[:, 0], microphones[:, 0], audience[:, 0]))).item()
-    room_y = torch.max(torch.cat((stage[:, 1], loudspeakers[:, 1], microphones[:, 1], audience[:, 1]))).item() - torch.min(torch.cat((stage[:, 1], loudspeakers[:, 1], microphones[:, 1], audience[:, 1]))).item()
-    room_z = torch.max(torch.cat((stage[:, 2], loudspeakers[:, 2], microphones[:, 2], audience[:, 2]))).item()
+    room_x = torch.max(torch.cat((stg[:, 0], lds[:, 0], mcs[:, 0], aud[:, 0]))).item() - torch.min(torch.cat((stg[:, 0], lds[:, 0], mcs[:, 0], aud[:, 0]))).item()
+    room_y = torch.max(torch.cat((stg[:, 1], lds[:, 1], mcs[:, 1], aud[:, 1]))).item() - torch.min(torch.cat((stg[:, 1], lds[:, 1], mcs[:, 1], aud[:, 1]))).item()
+    room_z = torch.max(torch.cat((stg[:, 2], lds[:, 2], mcs[:, 2], aud[:, 2]))).item()
     ax_3d.set_box_aspect([room_x, room_y, room_z])
 
     # Plot orientation
@@ -83,7 +83,7 @@ def plot_coupling(rirs: torch.Tensor, fs: int, decay_interval: str='T30', **kwar
 
     ecs = torch.cat((torch.cat((ec_LM, ec_SM), dim=1), torch.cat((ec_LA, ec_SA), dim=1)), dim=0)
     norm_value = torch.max(ecs)
-    ecs_norm = ecs/norm_value
+    ecs_norm = ecs / norm_value
     ecs_db = 10*torch.log10(ecs_norm)
 
     ecs_plot = [ecs_db[:ec_LM.shape[0], :ec_LM.shape[1]],
@@ -102,7 +102,7 @@ def plot_coupling(rirs: torch.Tensor, fs: int, decay_interval: str='T30', **kwar
         gridspec_kw={'wspace':0.05, 'hspace':0.1},
         figsize=(ecs.shape[1]/2, ecs.shape[0]/2)
     )
-    # fig.suptitle('Energy coupling')
+    fig.suptitle('Energy coupling')
 
     max_value = torch.max(ecs_db)
     min_value = torch.min(ecs_db)
@@ -169,7 +169,7 @@ def plot_DRR(rirs: torch.Tensor, fs: int, decay_interval: str='T30', **kwargs) -
         gridspec_kw={'wspace':0.05, 'hspace':0.1},
         figsize=(drrs.shape[1]/2, drrs.shape[0]/2)
     )
-    # fig.suptitle('Direct to reverberant ratio')
+    fig.suptitle('Direct to reverberant ratio')
 
     max_value = torch.max(drrs_db)
     min_value = torch.min(drrs_db)
