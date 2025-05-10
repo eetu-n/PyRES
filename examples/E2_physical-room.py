@@ -30,9 +30,9 @@ torch.manual_seed(12345)
 if __name__ == '__main__':
 
     # Time-frequency
-    samplerate = 48000                 # Sampling frequency
-    nfft = samplerate*3                # FFT size
-    alias_decay_db = 0                 # Anti-time-aliasing decay in dB
+    samplerate = 48000              # Sampling frequency
+    nfft = samplerate*3             # FFT size
+    alias_decay_db = 0              # Anti-time-aliasing decay in dB
 
     # Physical room
     room_dataset = './dataRES'      # Path to the dataset
