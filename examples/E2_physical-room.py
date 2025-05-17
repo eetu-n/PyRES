@@ -30,16 +30,8 @@ from PyRES.plots import plot_room_setup
 
 torch.manual_seed(12345)
 
-if __name__ == '__main__':
-
-    lds, mcs = simulate_setup(
-        room_dims=torch.tensor([10.2, 7.7, 3.4]),
-        lds_n=23,
-        mcs_n=15
-    )
-
-    plot_room_setup(stg=torch.tensor([[5,3,0]]), mcs=mcs, lds=lds, aud=torch.tensor([[5,3,0]]))
-
+if __name__ == '__main__':  
+    
     # Time-frequency
     samplerate = 48000              # Sampling frequency
     nfft = samplerate*3             # FFT size
