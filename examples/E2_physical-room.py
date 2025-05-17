@@ -9,6 +9,9 @@ import torch
 # PyRES
 from PyRES.physical_room import PhRoom_dataset
 
+from PyRES.functional import simulate_setup
+from PyRES.plots import plot_room_setup
+
 
 ###########################################################################################
 # In this example we implement a physical room using the PhRoom_dataset class.
@@ -28,6 +31,14 @@ from PyRES.physical_room import PhRoom_dataset
 torch.manual_seed(12345)
 
 if __name__ == '__main__':
+
+    lds, mcs = simulate_setup(
+        room_dims=torch.tensor([10.2, 7.7, 3.4]),
+        lds_n=23,
+        mcs_n=15
+    )
+
+    plot_room_setup(stg=torch.tensor([[5,3,0]]), mcs=mcs, lds=lds, aud=torch.tensor([[5,3,0]]))
 
     # Time-frequency
     samplerate = 48000              # Sampling frequency

@@ -191,3 +191,290 @@ class FDN_one_pole_absorption(dsp.parallelFilter):
                 - torch.Tensor: The energy decay slope relative to the delay line length.
         """
         return db2mag(delay_len * rt2slope(rt60, fs))
+
+
+# def simulate_setup(room_dims: torch.FloatTensor, lds_n: int, mcs_n: int) -> tuple[torch.FloatTensor, torch.FloatTensor]:
+#     r"""
+#     Simulates a RES setup with the given room dimensions and number of loudspeakers and microphones.
+
+#         **Args**:
+#             - room_dims (torch.Tensor[float,float,float]): The dimensions of the room [m] - length, width, height.
+#             - lds_n (int): The number of loudspeakers.
+#             - mcs_n (int): The number of microphones.
+
+#         **Returns**:
+#             - torch.Tensor: The loudspeaker positions [m].
+#             - torch.Tensor: The microphone positions [m].
+#     """
+#     assert len(room_dims.shape) == 1, "The room dimensions must be a 1D tensor."
+#     assert len(room_dims) == 3, "The room dimensions must have 3 elements."
+#     assert torch.all(room_dims > 0), "The room dimensions must be greater than 0."
+
+#     assert isinstance(lds_n, int), "The number of loudspeakers must be an integer."
+#     assert isinstance(mcs_n, int), "The number of microphones must be an integer."
+#     assert lds_n > 0, "The number of loudspeakers must be greater than 0."
+#     assert mcs_n > 0, "The number of microphones must be greater than 0."
+
+
+#     room_dims = torch.cat([torch.sort(room_dims[0:2], descending=True).values, room_dims[2].unsqueeze(0)], dim=0)
+#     surface_n = 5 # shoebox: 4 walls + 1 ceiling
+#     # Each surface is defined according to the ranges of values of its x, y, z coordinates, respectively
+#     lds_surfaces = [
+#         [   [0, room_dims[0]],  [0],                [0, room_dims[2]]   ],
+#         [   [room_dims[0], 0],  [room_dims[1]],     [0, room_dims[2]]   ],
+#         [   [room_dims[0]],     [0, room_dims[1]],  [0, room_dims[2]]   ],
+#         [   [0],                [room_dims[1], 0],  [0, room_dims[2]]   ],
+#         [   [0, room_dims[0]],  [0, room_dims[1]],  [room_dims[2]]      ]
+#     ]
+#     mcs_surfaces = [
+#         [   [0],                [0, room_dims[1]],  [room_dims[2], 0]   ],
+#         [   [room_dims[0]],     [room_dims[1], 0],  [room_dims[2], 0]   ],
+#         [   [0, room_dims[0]],  [room_dims[1]],     [room_dims[2], 0]   ],
+#         [   [room_dims[0], 0],  [0],                [room_dims[2], 0]   ],
+#         [   [0, room_dims[0]],  [room_dims[1], 0],  [room_dims[2]]      ]
+#     ]
+
+#     # Assign an index to each transducer
+#     lds_idx = torch.arange(0, lds_n)
+#     mcs_idx = torch.arange(0, mcs_n)
+#     # Assign each transducer to a surface
+#     lds_surface_idx = torch.fmod(lds_idx, surface_n)
+#     mcs_surface_idx = torch.fmod(mcs_idx, surface_n)
+
+#     # Allocate the loudspeaker and microphone positions
+#     lds_pos = torch.zeros((lds_n, 3))
+#     lds_count = 0
+#     mcs_pos = torch.zeros((mcs_n, 3))
+#     mcs_count = 0
+
+#     # For each surface
+#     for i in range(surface_n):
+#         # LOUDSPEAKERS
+#         # Count the number of loudspeaker in the surface
+#         lds_n_on_surface = torch.sum(lds_surface_idx == i)
+#         # First iterate along one dimension, then wrap around a second. Third dimension is constant.
+#         match i:
+#             case 0 | 1:
+#                 iter_idx  = 0
+#                 wrap_idx  = 2
+#                 const_idx = 1
+#             case 2 | 3:
+#                 iter_idx  = 1
+#                 wrap_idx  = 2
+#                 const_idx = 0
+#             case 4:
+#                 iter_idx  = 0
+#                 wrap_idx  = 1
+#                 const_idx = 2
+#             case _:
+#                 raise ValueError("Invalid surface index.")
+#         # Get the ranges of the coordinates of the surface
+#         iterate = lds_surfaces[i][iter_idx ]
+#         wrap    = lds_surfaces[i][wrap_idx ]
+#         const   = lds_surfaces[i][const_idx]
+#         # Allocate the loudspeaker positions
+#         lds_pos_on_surface = torch.zeros((lds_n_on_surface, 3))
+#         wrap_n = int(torch.ceil(torch.div(lds_n_on_surface, 3))) # Wrap along second dimension in case lds_n_on_surface > 3
+#         # Assign the positions of the loudspeakers (max 3 loudspeakers along first dimension)
+#         offiter = iterate[1] / (3 * 2)
+#         reduciter = iterate[1] / (3)
+#         iter_pos = torch.linspace(iterate[0] + offiter, (iterate[1] - reduciter) + offiter, 3).repeat(wrap_n, 1).flatten()
+#         offwrap = wrap[1] / ((wrap_n+1) * 2)
+#         reducwrap = wrap[1] / (wrap_n+1)
+#         wrap_pos = torch.linspace(wrap[0] + offwrap, (wrap[1] - reducwrap) + offwrap, wrap_n).repeat(3, 1).flatten()
+#         lds_pos_on_surface[:, iter_idx ] = iter_pos[:lds_n_on_surface]
+#         lds_pos_on_surface[:, wrap_idx ] = wrap_pos[:lds_n_on_surface]
+#         lds_pos_on_surface[:, const_idx] = const[0]
+
+#         # Assign the positions of the loudspeakers to the global positions
+#         lds_pos[lds_count:lds_count+lds_n_on_surface] = lds_pos_on_surface
+#         lds_count += lds_n_on_surface
+
+#         # MICROPHONES
+#         # Count the number of microphones in the surface
+#         mcs_n_on_surface = torch.sum(mcs_surface_idx == i)
+#         # First iterate along one dimension, then wrap around a second. Third dimension is constant.
+#         match i:
+#             case 0 | 1:
+#                 iter_idx  = 1
+#                 wrap_idx  = 2
+#                 const_idx = 0
+#             case 2 | 3:
+#                 iter_idx  = 0
+#                 wrap_idx  = 2
+#                 const_idx = 1
+#             case 4:
+#                 iter_idx  = 0
+#                 wrap_idx  = 1
+#                 const_idx = 2
+#             case _:
+#                 raise ValueError("Invalid surface index.")
+#         # Get the ranges of the coordinates of the surface
+#         iterate = mcs_surfaces[i][iter_idx ]
+#         wrap    = mcs_surfaces[i][wrap_idx ]
+#         const   = mcs_surfaces[i][const_idx]
+#         # Allocate the loudspeaker positions
+#         mcs_pos_on_surface = torch.zeros((mcs_n_on_surface, 3))
+#         wrap_n = int(torch.ceil(torch.div(mcs_n_on_surface, 3))) # Wrap along second dimension in case mcs_n_on_surface > 3
+#         # Assign the positions of the microphones (max 3 microphones along first dimension)
+#         offiter = iterate[1] / (2 * 3)
+#         reduciter = iterate[1] / (3)
+#         iter_pos = torch.linspace(iterate[0] + offiter, (iterate[1] - reduciter) + offiter, 3).repeat(wrap_n, 1).flatten()
+#         offwrap = wrap[1] / ((wrap_n+1) * 2)
+#         reducwrap = wrap[1] / (wrap_n+1)
+#         wrap_pos = torch.linspace(wrap[0] - offiter, (wrap[1] + reducwrap) - offiter, wrap_n).repeat(3, 1).flatten()
+#         mcs_pos_on_surface[:, iter_idx ] = iter_pos[:mcs_n_on_surface]
+#         mcs_pos_on_surface[:, wrap_idx ] = wrap_pos[:mcs_n_on_surface]
+#         mcs_pos_on_surface[:, const_idx] = const[0]
+
+#         # Assign the positions of the microphones to the global positions
+#         mcs_pos[mcs_count:mcs_count+mcs_n_on_surface] =  mcs_pos_on_surface
+#         mcs_count += mcs_n_on_surface
+
+#     return lds_pos, mcs_pos
+
+
+def simulate_setup(room_dims: torch.FloatTensor, lds_n: int, mcs_n: int) -> tuple[torch.FloatTensor, torch.FloatTensor]:
+    r"""
+    Simulates a RES setup with the given room dimensions and number of loudspeakers and microphones.
+
+        **Args**:
+            - room_dims (torch.Tensor[float,float,float]): The dimensions of the room [m] - length, width, height.
+            - lds_n (int): The number of loudspeakers.
+            - mcs_n (int): The number of microphones.
+
+        **Returns**:
+            - torch.Tensor: The loudspeaker positions [m].
+            - torch.Tensor: The microphone positions [m].
+    """
+    assert len(room_dims.shape) == 1, "The room dimensions must be a 1D tensor."
+    assert len(room_dims) == 3, "The room dimensions must have 3 elements."
+    assert torch.all(room_dims > 0), "The room dimensions must be greater than 0."
+
+    assert isinstance(lds_n, int), "The number of loudspeakers must be an integer."
+    assert isinstance(mcs_n, int), "The number of microphones must be an integer."
+    assert lds_n > 0, "The number of loudspeakers must be greater than 0."
+    assert mcs_n > 0, "The number of microphones must be greater than 0."
+
+
+    room_dims = torch.cat([torch.sort(room_dims[0:2], descending=True).values, room_dims[2].unsqueeze(0)], dim=0)
+    surface_n = 5 # shoebox: 4 walls + 1 ceiling
+
+    # Assign an index to each transducer
+    lds_idx = torch.arange(0, lds_n)
+    mcs_idx = torch.arange(0, mcs_n)
+    # Assign each transducer to a surface
+    lds_surface_idx = torch.fmod(lds_idx, surface_n)
+    mcs_surface_idx = torch.fmod(mcs_idx, surface_n)
+
+    # Allocate the loudspeaker and microphone positions
+    lds_pos = torch.zeros((lds_n, 3))
+    lds_count = 0
+    mcs_pos = torch.zeros((mcs_n, 3))
+    mcs_count = 0
+
+    # For each surface
+    for i in range(surface_n):
+        # Count the number of loudspeaker and microphones in the surface
+        lds_n_on_surface = torch.sum(lds_surface_idx == i)
+        mcs_n_on_surface = torch.sum(mcs_surface_idx == i)
+        # Case based on the surface index
+        match i:
+            case 0:
+                dim_1_idx = 0
+                dim_1 = room_dims[dim_1_idx]
+                dim_2_idx = 2
+                dim_2 = room_dims[dim_2_idx]
+                const_idx = 1
+                const = 0
+            case 1:
+                dim_1_idx = 0
+                dim_1 = room_dims[dim_1_idx]
+                dim_2_idx = 2
+                dim_2 = room_dims[dim_2_idx]
+                const_idx = 1
+                const = room_dims[const_idx]
+            case 2:
+                dim_1_idx = 1
+                dim_1 = room_dims[dim_1_idx]
+                dim_2_idx = 2
+                dim_2 = room_dims[dim_2_idx]
+                const_idx = 0
+                const = 0
+            case 3:
+                dim_1_idx = 1
+                dim_1 = room_dims[dim_1_idx]
+                dim_2_idx = 2
+                dim_2 = room_dims[dim_2_idx]
+                const_idx = 0
+                const = room_dims[const_idx]
+            case 4:
+                dim_1_idx = 1
+                dim_1 = room_dims[dim_1_idx]
+                dim_2_idx = 0
+                dim_2 = room_dims[dim_1_idx]
+                const_idx = 2
+                const = room_dims[const_idx]
+            case _:
+                raise ValueError("Invalid surface index.")
+        # Get the positions of loudspeakers and microphones on the current surface
+        lds_pos_on_surface, mcs_pos_on_surface = positions_on_surface(dim_1, dim_2, lds_n_on_surface, mcs_n_on_surface)
+        # Assign the positions of the loudspeakers to the global positions
+        lds_pos[lds_count:lds_count+lds_n_on_surface, dim_1_idx] = lds_pos_on_surface[:, 0]
+        lds_pos[lds_count:lds_count+lds_n_on_surface, dim_2_idx] = lds_pos_on_surface[:, 1]
+        lds_pos[lds_count:lds_count+lds_n_on_surface, const_idx] = const
+        # Assign the positions of the microphones to the global positions
+        mcs_pos[mcs_count:mcs_count+mcs_n_on_surface, dim_1_idx] = mcs_pos_on_surface[:, 0]
+        mcs_pos[mcs_count:mcs_count+mcs_n_on_surface, dim_2_idx] = mcs_pos_on_surface[:, 1]
+        mcs_pos[mcs_count:mcs_count+mcs_n_on_surface, const_idx] = const
+        # Update the counts
+        lds_count += lds_n_on_surface
+        mcs_count += mcs_n_on_surface
+
+    return lds_pos, mcs_pos
+
+def positions_on_surface(dim_1, dim_2, lds_n, mcs_n):
+    """
+    Evenly distribute microphones and loudspeakers on a surface,
+    ensuring they do not share the same position.
+
+    Args:
+        dim_1 (float): First dimension of the surface.
+        dim_2 (float): Second dimension of the surface.
+        mcs_n (int): Number of microphones.
+        lds_n (int): Number of loudspeakers.
+
+    Returns:
+        mic_positions: (mcs_n, 2) torch.FloatTensor
+        speaker_positions: (lds_n, 2) torch.FloatTensor
+    """
+    total = mcs_n + lds_n
+    if total == 0:
+        return torch.empty((0, 2)), torch.empty((0, 2))
+
+    # Choose grid resolution
+    cols = int(torch.ceil(torch.sqrt(torch.tensor(total)).float()).item())
+    rows = int(torch.ceil(total / cols))
+
+    x_vals = torch.linspace(0.5 * dim_1 / cols, dim_1 - 0.5 * dim_1 / cols, cols)
+    y_vals = torch.linspace(0.5 * dim_2 / rows, dim_2 - 0.5 * dim_2 / rows, rows)
+    yy, xx = torch.meshgrid(y_vals, x_vals, indexing='ij')
+    grid_points = torch.stack([xx.flatten(), yy.flatten()], dim=1)
+
+    # Compute distances from center of area
+    center = torch.tensor([dim_1 / 2, dim_2 / 2])
+    dists = torch.norm(grid_points - center, dim=1)
+
+    # Sort grid points by distance to center (closest first)
+    sorted_indices = torch.argsort(dists)
+    sorted_points = grid_points[sorted_indices][:total]
+
+    # Interleave assignment
+    mic_indices = torch.linspace(0, total - 1, mcs_n).round().long()
+    all_indices = torch.arange(total)
+    speaker_indices = all_indices[~torch.isin(all_indices, mic_indices)]
+
+    mic_positions = sorted_points[mic_indices]
+    speaker_positions = sorted_points[speaker_indices]
+
+    return speaker_positions, mic_positions

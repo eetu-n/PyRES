@@ -369,59 +369,59 @@ class PhRoom_dataset(PhRoom):
 # ==================================================================
 # =================== WHITE GAUSSIAN NOISE CLASS ===================
 
-# class PhRoom_wgn(PhRoom):
-#     r"""
-#     Subclass of PhRoom that generates the room impulse responses of a shoebox room approximated to late reverberation only and computed with exponentially-decaying white-Gaussian-noise sequences with Rayleigh-distributed magnitude responses.
-#     """
-#     def __init__(
-#             self,
-#             room_size: tuple[float, float, float],
-#             room_RT: float,
-#             fs: int,
-#             nfft: int,
-#             alias_decay_db: float,
-#             n_S: int,
-#             n_L: int,
-#             n_A: int, 
-#             n_M: int
-#         ) -> None:
-#         r"""
-#         Initializes the PhRoom_wgn object.
+class PhRoom_wgn(PhRoom):
+    r"""
+    Subclass of PhRoom that generates the room impulse responses of a shoebox room approximated to late reverberation only and computed with exponentially-decaying white-Gaussian-noise sequences with Rayleigh-distributed magnitude responses.
+    """
+    def __init__(
+            self,
+            room_size: tuple[float, float, float],
+            room_RT: float,
+            fs: int,
+            nfft: int,
+            alias_decay_db: float,
+            n_S: int,
+            n_L: int,
+            n_A: int, 
+            n_M: int
+        ) -> None:
+        r"""
+        Initializes the PhRoom_wgn object.
 
-#             **Args**:
-#                 - room_size (tuple[float, float, float]): Room size in meters.
-#                 - room_RT (float): Room reverberation time [s].
-#                 - fs (int): Sample rate [Hz].
-#                 - nfft (int): FFT size.
-#                 - alias_decay_db (float): Anti-time-aliasing decay [dB].
-#                 - n_S (int): Number of stage sources. Defaults to 1.
-#                 - n_L (int): Number of system loudspeakers.
-#                 - n_M (int): Number of system microphones.
-#                 - n_A (int): Number of audience positions.
-#         """
-#         assert n_S >= 0, "The number of stage sources must be higher than or equal to 0."
-#         assert n_L > 0,  "The number of system loudspeakers must be higher than 0."
-#         assert n_M > 0,  "The number of system microphones must be higher than 0."
-#         assert n_A >= 0, "The number of audience positions must be higher than or equal to 0."
+            **Args**:
+                - room_size (tuple[float, float, float]): Room size in meters.
+                - room_RT (float): Room reverberation time [s].
+                - fs (int): Sample rate [Hz].
+                - nfft (int): FFT size.
+                - alias_decay_db (float): Anti-time-aliasing decay [dB].
+                - n_S (int): Number of stage sources. Defaults to 1.
+                - n_L (int): Number of system loudspeakers.
+                - n_M (int): Number of system microphones.
+                - n_A (int): Number of audience positions.
+        """
+        assert n_S >= 0, "The number of stage sources must be higher than or equal to 0."
+        assert n_L > 0,  "The number of system loudspeakers must be higher than 0."
+        assert n_M > 0,  "The number of system microphones must be higher than 0."
+        assert n_A >= 0, "The number of audience positions must be higher than or equal to 0."
 
-#         super().__init__(
-#             self,
-#             fs=fs,
-#             nfft=nfft,
-#             alias_decay_db=alias_decay_db
-#         )
+        super().__init__(
+            self,
+            fs=fs,
+            nfft=nfft,
+            alias_decay_db=alias_decay_db
+        )
 
-#         self.RT = room_RT
-#         self.room_size = room_size
+        self.RT = room_RT
+        self.room_size = room_size
         
-#         self.n_S = n_S
-#         self.n_L = n_L
-#         self.n_M = n_M
-#         self.n_A = n_A
+        self.n_S = n_S
+        self.n_L = n_L
+        self.n_M = n_M
+        self.n_A = n_A
 
-#         self.h_SA, self.h_SM, self.h_LA, self.h_LM, self.rir_length = self.__generate_rirs()
+        self.h_SA, self.h_SM, self.h_LA, self.h_LM, self.rir_length = self.__generate_rirs()
 
-#     def __generate_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
-#         # TODO: generate exponentially-decaying white-Gaussian-noise sequences and zero pad them based on room size simulating transducers positioning
-#         # NOTE: Check torch.distributions.chi2.Chi2() and apply torch.sqrt() to obtain a Rayleigh distribution
-#         pass
+    def __generate_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
+        # TODO: generate exponentially-decaying white-Gaussian-noise sequences and zero pad them based on room size simulating transducers positioning
+        # NOTE: Check torch.distributions.chi2.Chi2() and apply torch.sqrt() to obtain a Rayleigh distribution
+        pass
