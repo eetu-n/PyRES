@@ -34,17 +34,6 @@ if __name__ == '__main__':
     nfft = samplerate*3             # FFT size
     alias_decay_db = 0              # Anti-time-aliasing decay in dB
 
-
-    physical_room = PhRoom_wgn(
-        room_dims=(10.2, 7.7, 3.1),
-        room_RT=0.9,
-        fs=samplerate,
-        nfft=nfft,
-        alias_decay_db=alias_decay_db,
-        n_L=3,
-        n_M=2
-    )
-
     # Physical room
     room_dataset = './dataRES'      # Path to the dataset
     room = 'Otala'                  # Path to the room impulse responses
