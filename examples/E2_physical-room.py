@@ -7,10 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # PyTorch
 import torch
 # PyRES
-from PyRES.physical_room import PhRoom_dataset
-
-from PyRES.functional import simulate_setup
-from PyRES.plots import plot_room_setup
+from PyRES.physical_room import PhRoom_dataset, PhRoom_wgn
 
 
 ###########################################################################################
@@ -30,12 +27,23 @@ from PyRES.plots import plot_room_setup
 
 torch.manual_seed(12345)
 
-if __name__ == '__main__':  
-    
+if __name__ == '__main__':
+
     # Time-frequency
     samplerate = 48000              # Sampling frequency
     nfft = samplerate*3             # FFT size
     alias_decay_db = 0              # Anti-time-aliasing decay in dB
+
+
+    physical_room = PhRoom_wgn(
+        room_dims=(10.2, 7.7, 3.1),
+        room_RT=0.9,
+        fs=samplerate,
+        nfft=nfft,
+        alias_decay_db=alias_decay_db,
+        n_L=3,
+        n_M=2
+    )
 
     # Physical room
     room_dataset = './dataRES'      # Path to the dataset

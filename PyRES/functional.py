@@ -1,5 +1,7 @@
 # ==================================================================
 # ============================ IMPORTS =============================
+# Miscellanous
+from collections import OrderedDict
 # PyTorch
 import torch
 # FLAMO
@@ -301,11 +303,17 @@ def simulate_setup(
 
     # Add some noise to the positions
     stg_pos += torch.normal(0, 0.01, size=stg_pos.shape)
-    lds_pos += torch.normal(0, 0.01, size=lds_pos.shape)
     mcs_pos += torch.normal(0, 0.01, size=mcs_pos.shape)
+    lds_pos += torch.normal(0, 0.01, size=lds_pos.shape)
     aud_pos += torch.normal(0, 0.01, size=aud_pos.shape)
 
-    return stg_pos, lds_pos, mcs_pos, aud_pos
+    positions = OrderedDict()
+    positions['stg'] = stg_pos
+    positions['mcs'] = mcs_pos
+    positions['lds'] = lds_pos
+    positions['aud'] = aud_pos
+
+    return positions
 
 def positions_on_surface(dim_1, dim_2, lds_n, mcs_n):
     """

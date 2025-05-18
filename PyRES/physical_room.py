@@ -2,13 +2,12 @@
 # ============================ IMPORTS =============================
 # Miscellanous
 from collections import OrderedDict
-import json
 # PyTorch
 import torch
 import torch.nn as nn
-import torchaudio
 # FLAMO
 from flamo import dsp
+from flamo.functional import WGN_reverb
 # PyRES
 from PyRES.dataset_api import (
     get_hl_info,
@@ -18,7 +17,7 @@ from PyRES.dataset_api import (
     get_transducer_number,
     get_transducer_positions
 )
-from PyRES.metrics import energy_coupling
+from PyRES.functional import simulate_setup
 from PyRES.plots import (
     plot_room_setup,
     plot_coupling,
@@ -371,18 +370,19 @@ class PhRoom_dataset(PhRoom):
 
 class PhRoom_wgn(PhRoom):
     r"""
-    Subclass of PhRoom that generates the room impulse responses of a shoebox room approximated to late reverberation only and computed with exponentially-decaying white-Gaussian-noise sequences with Rayleigh-distributed magnitude responses.
+    Subclass of PhRoom that synthetize the room impulse responses of a RES setup in a shoebox room.
+    The room is defined by its size and reverberation time.
+    The setup includes one stage emitter and one audience receiver only.
+    The room impulse responses are approximated to late reverberation only as exponentially-decaying white-Gaussian-noise sequences.
     """
     def __init__(
             self,
-            room_size: tuple[float, float, float],
+            room_dims: tuple[float, float, float],
             room_RT: float,
             fs: int,
             nfft: int,
             alias_decay_db: float,
-            n_S: int,
             n_L: int,
-            n_A: int, 
             n_M: int
         ) -> None:
         r"""
@@ -394,34 +394,163 @@ class PhRoom_wgn(PhRoom):
                 - fs (int): Sample rate [Hz].
                 - nfft (int): FFT size.
                 - alias_decay_db (float): Anti-time-aliasing decay [dB].
-                - n_S (int): Number of stage sources. Defaults to 1.
                 - n_L (int): Number of system loudspeakers.
                 - n_M (int): Number of system microphones.
-                - n_A (int): Number of audience positions.
         """
-        assert n_S >= 0, "The number of stage sources must be higher than or equal to 0."
         assert n_L > 0,  "The number of system loudspeakers must be higher than 0."
         assert n_M > 0,  "The number of system microphones must be higher than 0."
-        assert n_A >= 0, "The number of audience positions must be higher than or equal to 0."
 
         super().__init__(
-            self,
             fs=fs,
             nfft=nfft,
             alias_decay_db=alias_decay_db
         )
 
+        self.room_dims = torch.FloatTensor(room_dims)
         self.RT = room_RT
-        self.room_size = room_size
+
+        self.transducer_number = OrderedDict()
+        self.transducer_number.update({'stg': 1})
+        self.transducer_number.update({'mcs': n_M})
+        self.transducer_number.update({'lds': n_L})
+        self.transducer_number.update({'aud': 1})
         
-        self.n_S = n_S
-        self.n_L = n_L
-        self.n_M = n_M
-        self.n_A = n_A
+        self.transducer_positions = simulate_setup(
+            room_dims=self.room_dims,
+            lds_n=n_L,
+            mcs_n=n_M
+        )
 
         self.h_SA, self.h_SM, self.h_LA, self.h_LM, self.rir_length = self.__generate_rirs()
 
-    def __generate_rirs(self) -> tuple[OrderedDict[str, torch.Tensor], int]:
-        # TODO: generate exponentially-decaying white-Gaussian-noise sequences and zero pad them based on room size simulating transducers positioning
-        # NOTE: Check torch.distributions.chi2.Chi2() and apply torch.sqrt() to obtain a Rayleigh distribution
-        pass
+    def __generate_rirs(self) -> tuple[dsp.Filter, dsp.Filter, dsp.Filter, dsp.Filter, int]:
+        r"""
+        Generates the room impulse responses of the RES setup.
+            **Returns**:
+                - dsp.Filter: Room impulse responses bewteen stage emitters and audience receivers.
+                - dsp.Filter: Room impulse responses bewteen stage emitters and system receivers.
+                - dsp.Filter: Room impulse responses bewteen system emitters and audience receivers.
+                - dsp.Filter: Room impulse responses bewteen system emitters and system receivers.
+                - int: Length of the room impulse responses in samples.
+        """
+        
+        rirs_SA = self.__generate_rirs_of(
+            n_emitters=self.transducer_number['stg'],
+            pos_emitters=self.transducer_positions['stg'],
+            n_receivers=self.transducer_number['aud'],
+            pos_receivers=self.transducer_positions['aud']
+        )
+        rirs_SM = self.__generate_rirs_of(
+            n_emitters=self.transducer_number['stg'],
+            pos_emitters=self.transducer_positions['stg'],
+            n_receivers=self.transducer_number['mcs'],
+            pos_receivers=self.transducer_positions['mcs']
+        )
+        rirs_LA = self.__generate_rirs_of(
+            n_emitters=self.transducer_number['lds'],
+            pos_emitters=self.transducer_positions['lds'],
+            n_receivers=self.transducer_number['aud'],
+            pos_receivers=self.transducer_positions['aud']
+        )
+        rirs_LM = self.__generate_rirs_of(
+            n_emitters=self.transducer_number['lds'],
+            pos_emitters=self.transducer_positions['lds'],
+            n_receivers=self.transducer_number['mcs'],
+            pos_receivers=self.transducer_positions['mcs']
+        )
+
+        # Get the length of the RIRs
+        sa_length = rirs_SA.shape[0]
+        sm_length = rirs_SM.shape[0]
+        lm_length = rirs_LM.shape[0]
+        la_length = rirs_LA.shape[0]
+
+        max_length = max(sa_length, sm_length, lm_length, la_length)
+
+        # Pad the RIRs to the same length
+        rirs_SA = torch.nn.functional.pad(
+            input=rirs_SA,
+            pad=(0, 0, 0, 0, 0, max_length - sa_length),
+            mode='constant',
+            value=0
+        )
+        rirs_SM = torch.nn.functional.pad(
+            input=rirs_SM,
+            pad=(0, 0, 0, 0, 0, max_length - sm_length),
+            mode='constant',
+            value=0
+        )
+        rirs_LA = torch.nn.functional.pad(
+            input=rirs_LA,
+            pad=(0, 0, 0, 0, 0, max_length - la_length),
+            mode='constant',
+            value=0
+        )
+        rirs_LM = torch.nn.functional.pad(
+            input=rirs_LM,
+            pad=(0, 0, 0, 0, 0, max_length - lm_length),
+            mode='constant',
+            value=0
+        )
+
+        # Create processing modules
+        h_SA, h_SM, h_LA, h_LM = self.create_modules(
+            rirs_SA=rirs_SA,
+            rirs_SM=rirs_SM,
+            rirs_LA=rirs_LA,
+            rirs_LM=rirs_LM,
+            rir_length=max_length
+        )
+
+        return h_SA, h_SM, h_LA, h_LM, max_length
+
+
+    def __generate_rirs_of(self,
+            n_emitters: int,
+            pos_emitters: torch.FloatTensor,
+            n_receivers: int,
+            pos_receivers: torch.FloatTensor
+        ) -> torch.Tensor:
+        r"""
+        Generates the room impulse responses between the emitters and receivers.
+
+            **Args**:
+                - n_emitters (int): Number of emitters.
+                - pos_emitters (torch.FloatTensor): Positions of the emitters.
+                - n_receivers (int): Number of receivers.
+                - pos_receivers (torch.FloatTensor): Positions of the receivers.
+
+            **Returns**:
+                - torch.Tensor: Room impulse responses.
+        """
+        # Generate the room impulse responses as exponentially-decaying white-Gaussian-noise sequences
+        rirs = WGN_reverb(
+            matrix_size=(n_receivers, n_emitters),
+            t60=self.RT,
+            samplerate=self.fs,
+        )
+
+        # Compute the distances between the emitters and receivers
+        pos_emitters = pos_emitters.unsqueeze(0).repeat(n_receivers,1,1)
+        pos_receivers = pos_receivers.unsqueeze(1).repeat(1,n_emitters,1)
+        distances = torch.linalg.norm(pos_emitters - pos_receivers, dim=2)
+
+        # Compute the propagation times and convert them to samples
+        speed_of_sound = 343  # m/s
+        propagation_times = distances / speed_of_sound
+        propagation_samples = torch.round(propagation_times * self.fs).long()
+
+        # Zero-pad the RIRs
+        rirs = torch.nn.functional.pad(
+            input=rirs,
+            pad=(0, 0, 0, 0, 0, propagation_samples.max().item()),
+            mode='constant',
+            value=0
+        )
+
+        # Shift the RIRs according to the propagation times
+        for r in range(n_receivers):
+            for e in range(n_emitters):
+                rirs[:,r,e] = torch.roll(rirs[:,r,e], shifts=propagation_samples[r,e].item(), dims=0)
+
+        return rirs
