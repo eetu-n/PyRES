@@ -68,4 +68,4 @@ Make sure you have Python version >=3.10 installed on your system.
 
 ## Tutorial
 
-Please refer to the example files for a tutorial on how to use this library.
+Please refer to the example files for a tutorial.
