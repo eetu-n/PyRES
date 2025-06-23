@@ -377,11 +377,11 @@ class PhRoom_wgn(PhRoom):
     """
     def __init__(
             self,
-            room_dims: tuple[float, float, float],
-            room_RT: float,
             fs: int,
             nfft: int,
             alias_decay_db: float,
+            room_dims: tuple[float, float, float],
+            room_RT: float,
             n_L: int,
             n_M: int
         ) -> None:
