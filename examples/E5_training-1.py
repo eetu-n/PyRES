@@ -1,6 +1,5 @@
 # ==================================================================
 # ============================ IMPORTS =============================
-# Miscellanous
 import argparse
 import time
 import sys
@@ -14,14 +13,15 @@ from flamo.optimize.dataset import Dataset, load_dataset
 from flamo.optimize.trainer import Trainer
 # PyRES
 from PyRES.res import RES
-from PyRES.physical_room import PhRoom_dataset
+from PyRES.physical_room import PhRoom_wgn
 from PyRES.virtual_room import random_FIRs
 from PyRES.loss_functions import MSE_evs_mod
-from PyRES.utils import system_equalization_curve
-from PyRES.plots import plot_evs, plot_spectrograms
+from PyRES.functional import system_equalization_curve
+from PyRES.plots import plot_evs_compare, plot_spectrograms_compare
 
 ###########################################################################################
 # In this example, we train a virtual room to equalize the RES.
+# The physical room is simulated with the PhRoom_wgn class.
 # The virtual room is a mixing matrix of finite-impulse-response (FIR) filters.
 # For more information about the classes Dataset and Trainer, please refer to the FLAMO
 # documentation.
@@ -36,11 +36,20 @@ from PyRES.plots import plot_evs, plot_spectrograms
 # 6. Define the loss function as the mean squared error between the target and the eigenvalues
 #    of the RES open loop.
 # 7. Train the model with the trainer.
-# 8. Plot the eigenvalues and the spectrograms of the input and output signals.
-# 9. Save the model parameters.
+# 8. Plot the eigenvalues and the spectrograms to compare the system responses before and
+#    after optimization.
+# 9. Save the model parameters (optional).
+# This example, with the current training parameters, is meant as a proof of concept. 
+# By increasing the size of the dataset (see hyperparameter `--num`), the optimizer will
+# iterate over more training examples (more unit impulses), and the result will improve.
+
+# Reference:
+#     De Bortoli, G., Dal Santo, G., Prawda, K., Lokki, T., Välimäki, V., and Schlecht, S. J.
+#     "Differentiable Active Acoustics: Optimizing Stability via Gradient Descent"
+#     Proceedings of the International Conference on Digital Audio Effects, pp. 254-261, 2024.
 ###########################################################################################
 
-torch.manual_seed(130297)
+torch.manual_seed(141122)
 
 def train_virtual_room(args) -> None:
 
@@ -51,22 +60,26 @@ def train_virtual_room(args) -> None:
     alias_decay_db = 0                 # Anti-time-aliasing decay in dB
 
     # Physical room
-    room_dataset = './dataRES'         # Path to the dataset
-    room = 'Otala'                     # Path to the room impulse responses
-    physical_room = PhRoom_dataset(
+    room_dims = (12.1, 8.5, 3.2)    # Room dimensions in meters (length, width, height)
+    room_RT = 0.7                   # Reverberation time in seconds
+    n_M = 4                         # Number of microphones
+    n_L = 8                         # Number of loudspeakers
+    
+    physical_room = PhRoom_wgn(
         fs=samplerate,
         nfft=nfft,
         alias_decay_db=alias_decay_db,
-        dataset_directory=room_dataset,
-        room_name=room
+        room_dims=room_dims,
+        room_RT=room_RT,
+        n_M=n_M,
+        n_L=n_L
     )
-    _, n_mcs, n_lds, _ = physical_room.get_ems_rcs_number()
 
     # Virtual room
     fir_order = 2**8                   # FIR filter order
     virtual_room = random_FIRs(
-        n_M=n_mcs,
-        n_L=n_lds,
+        n_M=n_M,
+        n_L=n_L,
         fs=samplerate,
         nfft=nfft,
         alias_decay_db=alias_decay_db,
@@ -90,14 +103,14 @@ def train_virtual_room(args) -> None:
     )
     
     # ------------- Performance at initialization -------------
-    evs_init = res.open_loop_eigenvalues().squeeze(0)
-    ir_init = res.system_simulation().squeeze(0)
+    evs_init = res.open_loop_eigenvalues()
+    _,_,ir_init = res.system_simulation()
     
     # ----------------- Initialize dataset --------------------
-    dataset_input = torch.zeros(args.batch_size, samplerate, n_mcs)
+    dataset_input = torch.zeros(1, samplerate, n_M)
     dataset_input[:,0,:] = 1
     dataset_target = system_equalization_curve(evs=evs_init, fs=samplerate, nfft=nfft, f_c=8000)
-    dataset_target = dataset_target.view(1,-1,1).expand(args.batch_size, -1, n_mcs)
+    dataset_target = dataset_target.view(1,-1,1).expand(1, -1, n_M)
 
     dataset = Dataset(
         input = dataset_input,
@@ -105,7 +118,7 @@ def train_virtual_room(args) -> None:
         expand = args.num,
         device = args.device
         )
-    train_loader, valid_loader  = load_dataset(dataset, batch_size=args.batch_size, split=args.split, shuffle=False)
+    train_loader, valid_loader  = load_dataset(dataset, batch_size=1, split=args.split, shuffle=False)
 
     # ------------------- Initialize Trainer ------------------
     trainer = Trainer(
@@ -131,17 +144,17 @@ def train_virtual_room(args) -> None:
     trainer.train(train_loader, valid_loader)
 
     # ------------ Performance after optimization ------------
-    evs_opt = res.open_loop_eigenvalues().squeeze(0)
-    ir_opt = res.system_simulation().squeeze(0)
+    evs_opt = res.open_loop_eigenvalues()
+    _,_,ir_opt = res.system_simulation()
     
     # ------------------------ Plots -------------------------
-    plot_evs(evs_init, evs_opt, samplerate, nfft, 20, 8000)
-    plot_spectrograms(ir_init[:,0], ir_opt[:,0], samplerate, nfft=2**8, noverlap=2**7)
+    plot_evs_compare(evs_init, evs_opt, samplerate, nfft, 20, 8000)
+    plot_spectrograms_compare(ir_init[:,0], ir_opt[:,0], samplerate, nfft=2**11, noverlap=2**10)
 
     # ---------------- Save the model parameters -------------
     # If desired, you can use the following line to save the virtual room model state.
     # res.save_state_to(directory='./model_states/')
-    # The model state can be then load in another instance of the same virtual room to skip the training.
+    # The model state can be then loaded in another instance of the same virtual room to skip the training.
 
     return None
 
@@ -154,7 +167,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
     #----------------------- Dataset ----------------------
-    parser.add_argument('--batch_size', type=int, default=1, help='batch size for training')
     parser.add_argument('--num', type=int, default=2**5,help = 'dataset size')
     parser.add_argument('--device', type=str, default='cpu', help='device to use for computation')
     parser.add_argument('--split', type=float, default=0.8, help='split ratio for training and validation')
@@ -163,7 +175,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_epochs', type=int, default=10, help='maximum number of epochs')
     parser.add_argument('--patience_delta', type=float, default=1e-4, help='Minimum improvement in validation loss to be considered as an improvement')
     #---------------------- Optimizer ---------------------
-    parser.add_argument('--lr', type=float, default=1e-2, help='learning rate')
+    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
     #----------------- Parse the arguments ----------------
     args = parser.parse_args()
 

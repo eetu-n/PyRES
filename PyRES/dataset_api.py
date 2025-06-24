@@ -1,12 +1,11 @@
 # ==================================================================
 # ============================ IMPORTS =============================
-# Miscellanous
 from collections import OrderedDict
 import json
 # PyTorch
 import torch, torchaudio
 # PyRES
-from PyRES.metrics import energy_coupling
+from PyRES.functional import energy_coupling
 
 
 # ==================================================================
@@ -51,216 +50,6 @@ def get_ll_info(
         data = json.load(file)
 
     return data
-
-# ==================================================================
-# ==================== ROOM IMPULSE RESPONSES ======================
-
-def get_rir_metadata(
-        ds_dir: str,
-        room_dir: str,
-    ) -> tuple[int, int, OrderedDict]:
-    r"""
-    Retrieves the paths to the RIRs of all transducers in the room.
-
-        **Args**:
-            - ds_dir (str): Path to the dataset.
-            - room_dir (str): Path to the room in the dataset.
-            - stg_idx (list[int]): Indices of the requested stage emitters.
-            - mcs_idx (list[int]): Indices of the requested system receivers.
-            - lds_idx (list[int]): Indices of the requested system emitters.
-            - aud_idx (list[int]): Indices of the requested audience receivers.
-
-        **Returns**:
-            - OrderedDict: Paths to the RIRs of all transducers in the room.
-    """
-    # Get the low-level information of the room
-    ll_info = get_ll_info(ds_dir=ds_dir, room_dir=room_dir)
-
-    # Sample rate and length of the RIRs
-    samplerate = ll_info['RoomImpulseResponses']['SampleRate_Hz']
-    rir_length = ll_info['RoomImpulseResponses']['LengthInSamples']
-
-    # Path root
-    ds_dir = ds_dir.rstrip('/')
-    root = f"{ds_dir}/data/{room_dir}"
-
-    # Part of the path common to all RIRs
-    rir_path_1 = ll_info['RoomImpulseResponses']['Directory']
-    common_path = f"{root}/{rir_path_1}"
-
-    # Specific paths for each type of transducer
-    stg_to_aud = get_rir_foldername_of(ll_info=ll_info, emitter_type='stg', receiver_type='aud')
-    stg_to_sys = get_rir_foldername_of(ll_info=ll_info, emitter_type='stg', receiver_type='mcs')
-    sys_to_aud = get_rir_foldername_of(ll_info=ll_info, emitter_type='lds', receiver_type='aud')
-    sys_to_sys = get_rir_foldername_of(ll_info=ll_info, emitter_type='lds', receiver_type='mcs')
-
-    paths = OrderedDict()
-    paths.update({'stg_to_aud': f"{common_path}/{stg_to_aud}"})
-    paths.update({'stg_to_sys': f"{common_path}/{stg_to_sys}"})
-    paths.update({'sys_to_aud': f"{common_path}/{sys_to_aud}"})
-    paths.update({'sys_to_sys': f"{common_path}/{sys_to_sys}"})
-
-    return samplerate, rir_length, paths
-
-def get_rir_foldername_of(
-        ll_info: dict,
-        emitter_type: str,
-        receiver_type: str,
-    ) -> str:
-    r"""
-    Retrieves the path to the RIR folder of the requested transducers.
-    """
-    match emitter_type:
-        case 'stg':
-            emitter = 'StageEmitters'
-        case 'lds':
-            emitter = 'SystemEmitters'
-        case _:
-            raise ValueError(f"Emitter type {emitter_type} is not valid. Must be 'stg' or 'lds'.")
-        
-    match receiver_type:
-        case 'aud':
-            receiver = 'AudienceReceivers-Mono' # TODO: add for -Array and -Binaural
-        case 'mcs':
-            receiver = 'SystemReceivers'
-        case _:
-            raise ValueError(f"Receiver type {receiver_type} is not valid. Must be 'aud' or 'mcs'.")
-        
-    json_field = f"{emitter}-{receiver}"
-    folder_name = ll_info['RoomImpulseResponses'][json_field]['Directory']
-    return folder_name
-
-def get_rirs(
-        ds_dir: str,
-        room_dir: str,
-        transducer_indices: OrderedDict,
-        target_fs: int,
-    ) -> tuple[OrderedDict, OrderedDict]:
-    r"""
-    Loads
-    """
-    # Get RIR metadata
-    rir_fs, rir_length, paths = get_rir_metadata(
-        ds_dir=ds_dir,
-        room_dir=room_dir
-    )
-
-    # Stage to audience
-    stg_to_aud, _ = get_rirs_of(
-        path=paths["stg_to_aud"],
-        emitter_idx=transducer_indices['stg'],
-        receiver_idx=transducer_indices['aud'],
-        origin_fs=rir_fs,
-        target_fs=target_fs,
-        origin_len=rir_length
-    )
-    # Stage to system
-    stg_to_sys, _ = get_rirs_of(
-        path=paths['stg_to_sys'],
-        emitter_idx=transducer_indices['stg'],
-        receiver_idx=transducer_indices['mcs'],
-        origin_fs=rir_fs,
-        target_fs=target_fs,
-        origin_len=rir_length
-    )
-    # System to audience
-    sys_to_aud, _ = get_rirs_of(
-        path=paths['sys_to_aud'],
-        emitter_idx=transducer_indices['lds'],
-        receiver_idx=transducer_indices['aud'],
-        origin_fs=rir_fs,
-        target_fs=target_fs,
-        origin_len=rir_length
-    )
-    # System to system
-    sys_to_sys, rir_length = get_rirs_of(
-        path=paths['sys_to_sys'],
-        emitter_idx=transducer_indices['lds'],
-        receiver_idx=transducer_indices['mcs'],
-        origin_fs=rir_fs,
-        target_fs=target_fs,
-        origin_len=rir_length
-    )
-
-    rirs = OrderedDict()
-    rirs.update({'stg_to_aud': stg_to_aud})
-    rirs.update({'stg_to_sys': stg_to_sys})
-    rirs.update({'sys_to_aud': sys_to_aud})
-    rirs.update({'sys_to_sys': sys_to_sys})
-
-    return rirs, rir_length
-
-def get_rirs_of(path: str, emitter_idx: int, receiver_idx: int, origin_fs: int, target_fs: int, origin_len: int) -> torch.Tensor:
-        r"""
-        Loads the room impulse responses from the dataset and returns them in a matrix.
-
-            **Args**:
-                - path (str): Path to the room impulse responses in the dataset.
-                - emitter_idx (list[int]): Indices of the emitters.
-                - receiver_idx (list[int]): Indices of the receivers.
-                - fs (int): Sample rate [Hz].
-                - n_samples (int): Length of the room impulse responses in samples.
-
-            **Returns**:
-                - torch.Tensor: Room-impulse-response matrix as a torch tensor [n_samples, n_receivers, n_emitters].
-        """
-        n_emitters = len(emitter_idx)
-        n_receivers = len(receiver_idx)
-
-        n_samples = origin_len
-        resample = False
-        if target_fs != origin_fs:
-            n_samples = int(origin_len * target_fs / origin_fs)
-            resample = True
-
-        matrix = torch.zeros(n_samples, n_receivers, n_emitters)
-        for i,r in enumerate(receiver_idx):
-            for j,e in enumerate(emitter_idx):
-                filename = f"{path}/E{e+1:03d}_R{r+1:03d}_M01.wav"
-                w = torchaudio.load(filename)[0]
-                if resample:
-                    w = torchaudio.transforms.Resample(origin_fs, target_fs)(w)
-                matrix[:,i,j] = w.permute(1,0).squeeze()
-
-        return matrix, n_samples
-
-def normalize_rirs(
-        fs: int,
-        stg_to_aud: torch.Tensor,
-        stg_to_sys: torch.Tensor,
-        sys_to_aud: torch.Tensor,
-        sys_to_sys: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    r"""
-    Normalizes the room impulse responses.
-        **Args**:
-            - stg_to_aud (torch.Tensor): Room impulse responses bewteen stage emitters and audience receivers.
-            - stg_to_sys (torch.Tensor): Room impulse responses bewteen stage emitters and system receivers.
-            - sys_to_aud (torch.Tensor): Room impulse responses bewteen system emitters and audience receivers.
-            - sys_to_sys (torch.Tensor): Room impulse responses bewteen system emitters and system receivers.
-
-        **Returns**:
-            - torch.Tensor: Normalized room impulse responses bewteen stage emitters and audience receivers.
-            - torch.Tensor: Normalized room impulse responses bewteen stage emitters and system receivers.
-            - torch.Tensor: Normalized room impulse responses bewteen system emitters and audience receivers.
-            - torch.Tensor: Normalized room impulse responses bewteen system emitters and system receivers.
-    """
-    # Energy coupling of the feedback path
-    ec_lm = energy_coupling(rir=sys_to_sys, fs=fs, decay_interval='T30')
-    dim = torch.mean(torch.tensor([ec_lm.shape[0], ec_lm.shape[1]], dtype=torch.float32)).int()
-
-    # Norm factor: the feedback path is normalized to a power gain equal to the mean dimension of the system
-    norm_factor = torch.sqrt(torch.sum(ec_lm)) / torch.sqrt(dim)
-
-    # Normalization
-    rirs_norm = OrderedDict()
-    rirs_norm.update({'stg_to_aud': stg_to_aud / norm_factor})
-    rirs_norm.update({'stg_to_sys': stg_to_sys / norm_factor})
-    rirs_norm.update({'sys_to_aud': sys_to_aud / norm_factor})
-    rirs_norm.update({'sys_to_sys': sys_to_sys / norm_factor})
-
-    return rirs_norm
-
 
 # ==================================================================
 # ======================= TRANSDUCER NUMBER ========================
@@ -395,12 +184,266 @@ def get_positions_of(
             return None
         return pos
     else:
+        if len(pos) == 0:
+            Warning(f"For the requested room, the number of {str2} is zero.")
+            return None
         check_requested_indices(type=str2, number=len(pos), idx=idx)
         p = []
         for i in idx:
             p.append(pos[i])
         return p
+
+# ==================================================================
+# ==================== ROOM IMPULSE RESPONSES ======================
+
+def get_rir_metadata(
+        ds_dir: str,
+        room_dir: str,
+    ) -> tuple[int, int, OrderedDict]:
+    r"""
+    Retrieves the paths to the RIRs of all transducers in the room.
+
+        **Args**:
+            - ds_dir (str): Path to the dataset.
+            - room_dir (str): Path to the room in the dataset.
+            - stg_idx (list[int]): Indices of the requested stage emitters.
+            - mcs_idx (list[int]): Indices of the requested system receivers.
+            - lds_idx (list[int]): Indices of the requested system emitters.
+            - aud_idx (list[int]): Indices of the requested audience receivers.
+
+        **Returns**:
+            - OrderedDict: Paths to the RIRs of all transducers in the room.
+    """
+    # Get the low-level information of the room
+    ll_info = get_ll_info(ds_dir=ds_dir, room_dir=room_dir)
+
+    # Sample rate and length of the RIRs
+    samplerate = ll_info['RoomImpulseResponses']['SampleRate_Hz']
+    rir_length = ll_info['RoomImpulseResponses']['LengthInSamples']
+
+    # Path root
+    ds_dir = ds_dir.rstrip('/')
+    root = f"{ds_dir}/data/{room_dir}"
+
+    # Part of the path common to all RIRs
+    rir_path_1 = ll_info['RoomImpulseResponses']['Directory']
+    common_path = f"{root}/{rir_path_1}"
+
+    # Specific paths for each type of transducer
+    stg_to_aud = get_rir_foldername_of(ll_info=ll_info, emitter_type='stg', receiver_type='aud')
+    stg_to_sys = get_rir_foldername_of(ll_info=ll_info, emitter_type='stg', receiver_type='mcs')
+    sys_to_aud = get_rir_foldername_of(ll_info=ll_info, emitter_type='lds', receiver_type='aud')
+    sys_to_sys = get_rir_foldername_of(ll_info=ll_info, emitter_type='lds', receiver_type='mcs')
+
+    paths = OrderedDict()
+    paths.update({'stg_to_aud': f"{common_path}/{stg_to_aud}"})
+    paths.update({'stg_to_sys': f"{common_path}/{stg_to_sys}"})
+    paths.update({'sys_to_aud': f"{common_path}/{sys_to_aud}"})
+    paths.update({'sys_to_sys': f"{common_path}/{sys_to_sys}"})
+
+    return samplerate, rir_length, paths
+
+def get_rir_foldername_of(
+        ll_info: dict,
+        emitter_type: str,
+        receiver_type: str,
+    ) -> str:
+    r"""
+    Retrieves the path to the RIR folder of the requested transducers.
+    """
+    match emitter_type:
+        case 'stg':
+            emitter = 'StageEmitters'
+        case 'lds':
+            emitter = 'SystemEmitters'
+        case _:
+            raise ValueError(f"Emitter type {emitter_type} is not valid. Must be 'stg' or 'lds'.")
+        
+    match receiver_type:
+        case 'aud':
+            receiver = 'AudienceReceivers-Mono' # TODO: add for -Array and -Binaural
+        case 'mcs':
+            receiver = 'SystemReceivers'
+        case _:
+            raise ValueError(f"Receiver type {receiver_type} is not valid. Must be 'aud' or 'mcs'.")
+        
+    json_field = f"{emitter}-{receiver}"
+    folder_name = ll_info['RoomImpulseResponses'][json_field]['Directory']
+    return folder_name
+
+def get_rirs(
+        ds_dir: str,
+        room_dir: str,
+        transducer_indices: OrderedDict,
+        target_fs: int,
+    ) -> tuple[OrderedDict, int]:
+    r"""
+    Loads the requested room impulse responses (RIRs) from the dataset and returns them in an OrderedDict.
+
+        **Args**:
+            - ds_dir (str): Path to the dataset.
+            - room_dir (str): Path to the room in the dataset.
+            - transducer_indices (OrderedDict): Indices of the transducers in the room.
+            - target_fs (int): Target sample rate [Hz].
+
+        **Returns**:
+            - OrderedDict: Room impulse response matrix as a torch tensor.
+            - int: Length of the room impulse responses in samples.
+    """
+    # Get RIR metadata
+    rir_fs, rir_length, paths = get_rir_metadata(
+        ds_dir=ds_dir,
+        room_dir=room_dir
+    )
+
+    # Stage to audience
+    stg_to_aud, _ = get_rirs_of(
+        path=paths["stg_to_aud"],
+        emitter_idx=transducer_indices['stg'],
+        receiver_idx=transducer_indices['aud'],
+        origin_fs=rir_fs,
+        target_fs=target_fs,
+        origin_len=rir_length
+    )
+    # Stage to system
+    stg_to_sys, _ = get_rirs_of(
+        path=paths['stg_to_sys'],
+        emitter_idx=transducer_indices['stg'],
+        receiver_idx=transducer_indices['mcs'],
+        origin_fs=rir_fs,
+        target_fs=target_fs,
+        origin_len=rir_length
+    )
+    # System to audience
+    sys_to_aud, _ = get_rirs_of(
+        path=paths['sys_to_aud'],
+        emitter_idx=transducer_indices['lds'],
+        receiver_idx=transducer_indices['aud'],
+        origin_fs=rir_fs,
+        target_fs=target_fs,
+        origin_len=rir_length
+    )
+    # System to system
+    sys_to_sys, rir_length = get_rirs_of(
+        path=paths['sys_to_sys'],
+        emitter_idx=transducer_indices['lds'],
+        receiver_idx=transducer_indices['mcs'],
+        origin_fs=rir_fs,
+        target_fs=target_fs,
+        origin_len=rir_length
+    )
+
+    rirs = OrderedDict()
+    rirs.update({'stg_to_aud': stg_to_aud})
+    rirs.update({'stg_to_sys': stg_to_sys})
+    rirs.update({'sys_to_aud': sys_to_aud})
+    rirs.update({'sys_to_sys': sys_to_sys})
+
+    return rirs, rir_length
+
+def get_rirs_of(
+        path: str,
+        emitter_idx: int,
+        receiver_idx: int,
+        origin_fs: int,
+        target_fs: int,
+        origin_len: int
+    ) -> tuple[torch.Tensor, int]:
+    r"""
+    Loads the requested room impulse responses from the dataset and returns them in a matrix.
+
+        **Args**:
+            - path (str): Path to the room impulse responses in the dataset.
+            - emitter_idx (list[int]): Indices of the emitters.
+            - receiver_idx (list[int]): Indices of the receivers.
+            - fs (int): Sample rate [Hz].
+            - n_samples (int): Length of the room impulse responses in samples.
+
+        **Returns**:
+            - torch.Tensor: Room-impulse-response matrix as a torch tensor [n_samples, n_receivers, n_emitters].
+            - int: Length of the room impulse responses in samples.
+    """
+    n_emitters = len(emitter_idx)
+    n_receivers = len(receiver_idx)
+
+    n_samples = origin_len
+    resample = False
+    if target_fs != origin_fs:
+        n_samples = int(origin_len * target_fs / origin_fs)
+        resample = True
+
+    matrix = torch.zeros(n_samples, n_receivers, n_emitters)
+    for i,r in enumerate(receiver_idx):
+        for j,e in enumerate(emitter_idx):
+            filename = f"{path}/E{e+1:03d}_R{r+1:03d}_M01.wav"
+            w = torchaudio.load(filename)[0]
+            if resample:
+                w = torchaudio.transforms.Resample(origin_fs, target_fs)(w)
+            matrix[:,i,j] = w.permute(1,0).squeeze()
+
+    return matrix, n_samples
+
+def normalize_rirs(
+        fs: int,
+        stg_to_aud: torch.Tensor,
+        stg_to_sys: torch.Tensor,
+        sys_to_aud: torch.Tensor,
+        sys_to_sys: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    r"""
+    Normalizes the room impulse responses.
+        **Args**:
+            - stg_to_aud (torch.Tensor): Room impulse responses bewteen stage emitters and audience receivers.
+            - stg_to_sys (torch.Tensor): Room impulse responses bewteen stage emitters and system receivers.
+            - sys_to_aud (torch.Tensor): Room impulse responses bewteen system emitters and audience receivers.
+            - sys_to_sys (torch.Tensor): Room impulse responses bewteen system emitters and system receivers.
+
+        **Returns**:
+            - torch.Tensor: Normalized room impulse responses bewteen stage emitters and audience receivers.
+            - torch.Tensor: Normalized room impulse responses bewteen stage emitters and system receivers.
+            - torch.Tensor: Normalized room impulse responses bewteen system emitters and audience receivers.
+            - torch.Tensor: Normalized room impulse responses bewteen system emitters and system receivers.
+    """
+    # Energy coupling
+    ec_stg_aud = energy_coupling(rir=stg_to_aud, fs=fs, decay_interval='T30')
+    ec_stg_sys = energy_coupling(rir=stg_to_sys, fs=fs, decay_interval='T30')
+    ec_sys_aud = energy_coupling(rir=sys_to_aud, fs=fs, decay_interval='T30')
+    ec_sys_sys = energy_coupling(rir=sys_to_sys, fs=fs, decay_interval='T30')
+
+    # Norm factor - energy misbalance in recording set
+    norm_stg = torch.mean(torch.hstack([ec_stg_aud.flatten(), ec_stg_sys.flatten()]))
+    norm_aud = torch.mean(torch.hstack([ec_sys_aud.flatten(), ec_stg_aud.flatten()]))
+    norm_lds = torch.mean(torch.hstack([ec_sys_aud.flatten(), ec_sys_sys.flatten()]))
+    norm_mcs = torch.mean(torch.hstack([ec_sys_sys.flatten(), ec_stg_sys.flatten()]))
+
+    norm_stg_aud = torch.pow((norm_stg * norm_aud), 1/4)
+    norm_stg_sys = torch.pow((norm_stg * norm_mcs), 1/4)
+    norm_sys_aud = torch.pow((norm_lds * norm_aud), 1/4)
+    norm_sys_sys = torch.pow((norm_lds * norm_mcs), 1/4)
+
+    # Norm factor - maximum value of energy coupling
+    max_value = torch.max(torch.tensor([
+        torch.sqrt(torch.max(ec_stg_aud)) / norm_stg_aud,
+        torch.sqrt(torch.max(ec_stg_sys)) / norm_stg_sys,
+        torch.sqrt(torch.max(ec_sys_aud)) / norm_sys_aud,
+        torch.sqrt(torch.max(ec_sys_sys)) / norm_sys_sys
+    ]))
+
+    # Normalization
+    stg_to_aud = stg_to_aud / norm_stg_aud / max_value
+    stg_to_sys = stg_to_sys / norm_stg_sys / max_value
+    sys_to_aud = sys_to_aud / norm_sys_aud / max_value
+    sys_to_sys = sys_to_sys / norm_sys_sys / max_value
     
+    # Return normalized RIRs
+    rirs_norm = OrderedDict()
+    rirs_norm.update({'stg_to_aud': stg_to_aud})
+    rirs_norm.update({'stg_to_sys': stg_to_sys})
+    rirs_norm.update({'sys_to_aud': sys_to_aud})
+    rirs_norm.update({'sys_to_sys': sys_to_sys})
+
+    return rirs_norm
+
 # ==================================================================
 # ===================== CHECK REQUESTED INDICES ====================
 
