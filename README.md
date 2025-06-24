@@ -105,7 +105,7 @@ Please refer to the .examples/ folder for a series of tutorial files.
 
 ## References
 
-[1] De Bortoli, G., Prawda, K., Coleman, P., and Schlecht, S. J. "DataRES: Dataset for research on Reverberation Enhancement Systems" (1.0.0) [Data set]. Zenodo. https://doi.org/10.5281/zenodo.15165524
+[1] De Bortoli, G., Prawda, K., Coleman, P., and Schlecht, S. J. "DataRES: Dataset for research on Reverberation Enhancement Systems" (2.0.0) [Data set]. Zenodo. [https://doi.org/10.5281/zenodo.15165524](https://doi.org/10.5281/zenodo.15732773)
 
 [2] Dal Santo G., De Bortoli, G., Prawda, K., Schlecht, S. J., and Välimäki, V. "FLAMO: An Open-Source Library for Frequency-Domain Differentiable Audio Processing" Proceedings of the International Conference on Acoustics, Speech, and Signal Processing, pp.1--5, 2025
 
