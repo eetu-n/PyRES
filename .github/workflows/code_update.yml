@@ -38,4 +38,7 @@ jobs:
         shell: bash -l {0}
         run: |
           source pyres-env/bin/activate
-          python examples/E1_virtual-room.py
+          python tests/T1_virtual-room.py
+          python tests/T2_physical-room.py
+          python tests/T3_res.py
+          python tests/T4_training.py

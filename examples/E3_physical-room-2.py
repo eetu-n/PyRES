@@ -33,7 +33,7 @@ if __name__ == '__main__':
     print(f"PhRoom_dataset need to be given the dataset directory and the room name to load the data.")
     print(f"By downloading DataRES and inspecting the json file called 'datasetInfo.json', you can find the available rooms.")
     dataset_directory = './dataRES'
-    room_name = 'GLivelab-Helsinki'
+    room_name = 'Otala'
 
     physical_room = PhRoom_dataset(
         fs=samplerate,

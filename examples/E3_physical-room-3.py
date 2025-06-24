@@ -23,7 +23,7 @@ if __name__ == '__main__':
 
     # Physical room
     dataset_directory = './dataRES'
-    room_name = 'Otala'
+    room_name = 'ImmersiveLab'
 
     print(f"\nHaving downloaded DataRES, you can also inspect the information contained in the dataset using the api provided in PyRES: dataset_api.py.")
     high_level_info = get_hl_info(
