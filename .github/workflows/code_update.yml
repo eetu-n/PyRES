@@ -2,9 +2,13 @@ name: Test PyRES update
 
 on:
   push:
-    branches-ignore:
+    branches:
       - main
-      - test
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
 
 jobs:
   test-install:
