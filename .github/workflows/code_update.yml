@@ -2,12 +2,16 @@ name: Test PyRES update
 
 on:
   push:
-    branches-ignore:
+    branches:
       - main
-      - test
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
 
 jobs:
-  test-install:
+  test-code_update:
     runs-on: macos-latest
     strategy:
       matrix:
@@ -38,4 +42,7 @@ jobs:
         shell: bash -l {0}
         run: |
           source pyres-env/bin/activate
-          python examples/E1_virtual-room.py
+          python tests/T1_virtual-room.py
+          python tests/T2_physical-room.py
+          python tests/T3_res.py
+          python tests/T4_training.py

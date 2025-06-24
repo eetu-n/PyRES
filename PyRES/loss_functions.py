@@ -1,6 +1,5 @@
 # ==================================================================
 # ============================ IMPORTS =============================
-# Miscellanous
 import numpy as np
 # PyTorch
 import torch
@@ -145,7 +144,7 @@ class colorless_reverb(mse_loss):
         self.freq_points = len(self.idxs)
 
     def forward(self, y_pred, y_target, model):
-        processor = system.Shell(core=model.get_core().V_ML)
+        processor = system.Shell(core=model.get_core()[0])
         mag_response = get_magnitude(processor.get_freq_response(identity=True))
         prediction = mag_response[:,self.idxs,:,:]
         target = torch.ones_like(prediction)
