@@ -11,7 +11,7 @@ on:
       - dev
 
 jobs:
-  test-install:
+  test-code_update:
     runs-on: macos-latest
     strategy:
       matrix:
