@@ -1,6 +1,5 @@
 # ==================================================================
 # ============================ IMPORTS =============================
-# Miscellanous
 from collections import OrderedDict
 import os
 import time
@@ -13,6 +12,7 @@ from flamo.functional import db2mag, mag2db, get_magnitude, get_eigenvalues
 # PyRES
 from PyRES.physical_room import PhRoom
 from PyRES.virtual_room import VrRoom
+from PyRES.utils import expand_to_dimension
 
 
 # ==================================================================
@@ -66,20 +66,20 @@ class RES(object):
         self.fs, self.nfft, self.alias_decay_db = self.__check_param_compatibility(physical_room, virtual_room)
 
         # Number of emitters and receivers
-        self.n_S, self.n_M, self.n_L, self.n_A = self.__check_io_compatibility(physical_room, virtual_room)
+        self.transducer_number = self.__check_io_compatibility(physical_room, virtual_room)
 
         # Physical room
-        self.__H = physical_room
+        self.phroom = physical_room
 
         # Virtual room
-        self.__v_ML = virtual_room
+        self.vrroom = virtual_room
 
         # System gain
-        self.__G = dsp.parallelGain(size=(self.n_L,), nfft=self.nfft, alias_decay_db=self.alias_decay_db)
+        self.G = dsp.parallelGain(size=(self.transducer_number['lds'],), nfft=self.nfft, alias_decay_db=self.alias_decay_db)
 
         # Apply safe margin of 2 dB
         gbi_init = self.compute_GBI()
-        self.set_G(db2mag(mag2db(gbi_init) - 2))
+        self.set_G(db2mag(mag2db(gbi_init) - 3))
     
     # ==================================================================================
     # ================================ CHECK METHODS ===================================
@@ -94,10 +94,10 @@ class RES(object):
 
     def __check_io_compatibility(self, physical_room: PhRoom, virtual_room: VrRoom) -> tuple[int, int, int, int]:
         
-        assert(physical_room.n_M == virtual_room.n_M), "Number of microphones must be the same in physical and virtual rooms."
-        assert(physical_room.n_L == virtual_room.n_L), "Number of loudspeakers must be the same in physical and virtual rooms."
+        assert(physical_room.transducer_number['mcs'] == virtual_room.n_M), "Number of microphones must be the same in physical and virtual rooms."
+        assert(physical_room.transducer_number['lds'] == virtual_room.n_L), "Number of loudspeakers must be the same in physical and virtual rooms."
 
-        return physical_room.n_S, physical_room.n_M, physical_room.n_L, physical_room.n_A
+        return physical_room.transducer_number
 
     # ==================================================================================
     # ============================ PHYSICAL ROOM METHODS ===============================
@@ -109,7 +109,7 @@ class RES(object):
             **Returns**:
                 - nn.Module: Stage-to-Audience RIRs
         """
-        return self.__H.get_stg_to_aud()
+        return self.phroom.get_stg_to_aud()
     
     def get_h_SM(self) -> nn.Module:
         f"""
@@ -118,7 +118,7 @@ class RES(object):
             **Returns**:
                 - nn.Module: Stage-to-Microphones RIRs
         """
-        return self.__H.get_stg_to_mcs()
+        return self.phroom.get_stg_to_mcs()
     
     def get_h_LA(self) -> nn.Module:
         f"""
@@ -127,7 +127,7 @@ class RES(object):
             **Returns**:
                 - nn.Module: Loudspeaker-to-Audience RIRs
         """
-        return self.__H.get_lds_to_aud()
+        return self.phroom.get_lds_to_aud()
 
     def get_h_LM(self) -> nn.Module:
         f"""
@@ -136,7 +136,7 @@ class RES(object):
             **Returns**:
                 - nn.Module: Loudspeaker-to-Microphones RIRs
         """
-        return self.__H.get_lds_to_mcs()
+        return self.phroom.get_lds_to_mcs()
     
     # ==================================================================================
     # ============================= VIRTUAL ROOM METHODS ===============================
@@ -148,7 +148,7 @@ class RES(object):
             **Returns**:
                 - nn.Module: virtual room.
         """
-        return self.__v_ML
+        return self.vrroom.get_v_ML()
     
     def get_v_ML_responses(self) -> tuple[torch.Tensor, torch.Tensor]:
         r"""
@@ -180,7 +180,7 @@ class RES(object):
             **Returns**:
                 - torch.Tensor: system gain value (linear scale).
         """
-        return self.__G
+        return self.G
 
     def set_G(self, g: float) -> None:
         r"""
@@ -190,7 +190,7 @@ class RES(object):
                 - g (float): new system gain value (linear scale).
         """
         assert isinstance(g, torch.FloatTensor), "G must be a torch.FloatTensor."
-        self.__G.assign_value(g*torch.ones(self.n_L))
+        self.G.assign_value(g*torch.ones(self.transducer_number['lds']))
 
     def compute_GBI(self, criterion: str='eigenvalue_magnitude') -> torch.Tensor:
         r"""
@@ -239,12 +239,15 @@ class RES(object):
 
         return gbi
     
-    def set_G_to_GBI(self) -> None:
+    def set_G_to_GBI(self, gbi_estimation_criterion: str='eigenvalue_magnitude') -> None:
         r"""
         Sets the system gain to match the current system GBI.
+
+            **Args**:
+                - gbi_estimation_criterion (str, optional): criterion to compute the GBI. Defaults to 'eigenvalue_magnitude'.
         """
         # Compute the current gain before instability
-        gbi = self.compute_GBI()
+        gbi = self.compute_GBI(criterion=gbi_estimation_criterion)
 
         # Apply the current gain before instability to the system gain module
         self.set_G(gbi)
@@ -283,10 +286,14 @@ class RES(object):
         
         with torch.no_grad():
             # Compute open-loop time and frequency responses
-            open_loop_irs = open_loop.get_time_response(fs=self.fs, identity=True)
-            open_loop_fr = open_loop.get_freq_response(fs=self.fs, identity=True)
+            open_loop_irs = open_loop.get_time_response(fs=self.fs, identity=True).squeeze() # TODO: Check if squeeze is needed
+            open_loop_fr = open_loop.get_freq_response(fs=self.fs, identity=True).squeeze()
 
-        return open_loop_irs.squeeze(), open_loop_fr.squeeze()
+        # Expand to the explicit dimension
+        open_loop_irs = expand_to_dimension(array=open_loop_irs, dim=2)
+        open_loop_fr = expand_to_dimension(array=open_loop_fr, dim=2)
+
+        return open_loop_irs, open_loop_fr
 
     def open_loop_eigenvalues(self) -> torch.Tensor:
         r"""
@@ -300,9 +307,12 @@ class RES(object):
         _, fr_matrix = self.open_loop_responses()
         with torch.no_grad():
             # Compute eigenvalues
-            evs = get_eigenvalues(fr_matrix)
+            evs = get_eigenvalues(fr_matrix).squeeze()
 
-        return evs.squeeze()
+        # Expand to the explicit dimension
+        evs = expand_to_dimension(array=evs, dim=2)
+
+        return evs
     
     def closed_loop(self) -> system.Recursion:
         r"""
@@ -331,26 +341,14 @@ class RES(object):
         
         with torch.no_grad():
             # Compute closed-loop time and frequency responses
-            closed_loop_irs = closed_loop.get_time_response(fs=self.fs, identity=True)
-            closed_loop_fr = closed_loop.get_freq_response(fs=self.fs, identity=True)
+            closed_loop_irs = closed_loop.get_time_response(fs=self.fs, identity=True).squeeze()
+            closed_loop_fr = closed_loop.get_freq_response(fs=self.fs, identity=True).squeeze()
 
-        return closed_loop_irs.squeeze(), closed_loop_fr.squeeze()
-    
-    def closed_loop_eigenvalues(self) -> torch.Tensor:
-        r"""
-        Computes the eigenvalues of the system closed loop.
+        # Expand to the explicit dimension
+        closed_loop_irs = expand_to_dimension(array=closed_loop_irs, dim=2)
+        closed_loop_fr = expand_to_dimension(array=closed_loop_fr, dim=2)
 
-            **Returns**:
-                - torch.Tensor: closed-loop eigenvalues [nfft, n_M, n_M].
-        """
-
-        # Generate closed-loop frequency responses
-        _, fr_matrix = self.closed_loop_responses()
-        with torch.no_grad():
-            # Compute eigenvalues
-            evs = get_eigenvalues(fr_matrix)
-
-        return evs.squeeze()
+        return closed_loop_irs, closed_loop_fr
     
     # ==================================================================================
     # =============================== SYSTEM SIMULATION ================================
@@ -379,21 +377,28 @@ class RES(object):
 
         return nat_path, ea_path
     
-    def system_simulation(self) -> torch.Tensor:
+    def system_simulation(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         r"""
         Simulates the full system producing the system impulse responses from the stage emitters to the audience receivers.
 
             **Returns**:
-                - torch.Tensor: RES impulse responses [samples, n_A, n_S].
+                - torch.Tensor: natural room impulse responses of the physical room [samples, n_A, n_S].
+                - torch.Tensor: electroacoustic impulse responses of the RES [samples, n_A, n_S].
+                - torch.Tensor: full system impulse responses [samples, n_A, n_S].
         """
         # Generate the paths
         nat_path, ea_path = self.__system_paths()
         
         with torch.no_grad():
             # Compute system response
-            y = nat_path.get_time_response() + ea_path.get_time_response()
+            y_nat = nat_path.get_time_response().squeeze() # TODO: Check if squeeze is needed
+            y_ea = ea_path.get_time_response().squeeze()
 
-        return y.squeeze()
+        # Expand to the explicit dimension
+        y_nat = expand_to_dimension(array=y_nat, dim=2)
+        y_ea = expand_to_dimension(array=y_ea, dim=2)
+
+        return y_nat, y_ea, y_nat + y_ea
     
     # ==================================================================================
     # ================================= SYSTEM STATE ===================================
