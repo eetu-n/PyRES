@@ -13,8 +13,8 @@ from PyRES.res import RES
 from PyRES.physical_room import PhRoom_dataset
 from PyRES.virtual_room import random_FIRs
 from PyRES.loss_functions import MSE_evs_mod
-from PyRES.functional import system_equalization_curve
-from PyRES.plots import plot_evs_compare, plot_spectrograms_compare
+#from PyRES.functional import system_equalization_curve
+from PyRES.plots import plot_evs_compare, plot_irs_compare
 
 torch.manual_seed(141122)
 
@@ -24,7 +24,7 @@ if __name__ == '__main__':
     alias_decay_db = 0.0
     FIR_order = 2**8
     lr = 1e-3 
-    epochs = 1000
+    epochs = 100
 
     # Physical room
     dataset_directory = './dataRES'
@@ -64,6 +64,8 @@ if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Init Model
+    # needs full system loop, which is open loop + closed loop + possible transfer paths
+    # 
     model = system.Shell(
         core=res.open_loop(),
         input_layer=system.Series(
@@ -73,21 +75,21 @@ if __name__ == '__main__':
     )
 
     evs_init = res.open_loop_eigenvalues()
-    _,_,ir_init = res.system_simulation()
+    sys_nat,_,_ = res.system_simulation()
 
     dataset_target = torch.zeros(1, samplerate, n_M)
     dataset_target[:,0,:] = 1
-    dataset_input = system_equalization_curve(evs=evs_init, fs=samplerate, nfft=nfft, f_c=8000)
-    dataset_input = dataset_target.view(1,-1,1).expand(1, -1, n_M) 
-    dataset_target = dataset_target.to(dtype = torch.float32)
 
+    dataset_input = torch.zeros(1, samplerate, n_M)
+    dataset_input[:,0,:] = 1
+    
     print(f"Input Dataset Shape:", dataset_input.shape)
     print(f"Target Dataset Shape:", dataset_target.shape)
     
     dataset = Dataset(
         input = dataset_input,
         target = dataset_target,
-        expand = 2**4,
+        expand = samplerate,
         device = device
         )
     
@@ -103,7 +105,7 @@ if __name__ == '__main__':
         train_dir = train_dir,
         device = device
     )
-    
+    # MSE with the system response and a unit impulse 
     criterion = MSE_evs_mod(
         iter_num = 2**5,
         freq_points = nfft//2+1,
@@ -117,8 +119,8 @@ if __name__ == '__main__':
     #torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
     evs_opt = res.open_loop_eigenvalues()
-    _,_,ir_opt = res.system_simulation()
+    sys_opt,_,sys_full_opt = res.system_simulation()
     
     # ------------------------- Plots -------------------------
-    plot_evs_compare(evs_init, evs_opt, samplerate, nfft, 40, 460)
-    plot_spectrograms_compare(ir_init, ir_opt, samplerate, nfft=2**4, noverlap=2**3)
+    plot_evs_compare(evs_init, evs_opt, samplerate, nfft, 20, samplerate / 2)
+    plot_irs_compare(sys_nat, sys_full_opt, samplerate)
