@@ -325,6 +325,33 @@ class RES(object):
         feedback = self.get_h_LM()
         return system.Recursion(fF=feedforward, fB=feedback)
     
+    def full_system_(self) -> nn.Module: 
+        r"""
+        Generates the full system as a nn module.
+        """
+        # Stage → Microphones
+        H_SM = self.get_h_SM()  
+        # Loudspeakers → Audience
+        H_LA = self.get_h_LA()  
+        # Stage → Audience
+        H_SA = self.get_h_SA()  
+
+        # DSP (Virtual room): Microphones → Loudspeakers
+        V_ML = self.get_v_ML()  
+        G = self.get_G()     
+
+        closed_loop_ = self.closed_loop()
+
+        path_ = system.Series(OrderedDict([
+            ('H_SM', H_SM),
+            ('closed_loop', closed_loop_),
+            ('H_LA', H_LA)
+        ]))
+
+        system_full = system.Parallel(H_SA, path_)
+
+        return system_full
+    
     def closed_loop_responses(self) -> tuple[torch.Tensor, torch.Tensor]:
         r"""
         Computes the time- and frequency-response matrices of the closed-loop.
