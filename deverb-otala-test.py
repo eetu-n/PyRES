@@ -4,10 +4,12 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import torch 
+import torch.nn as nn
 
 from flamo import system, dsp
 from flamo.optimize.dataset import Dataset, load_dataset
 from flamo.optimize.trainer import Trainer
+from flamo.optimize.loss import mse_loss
 
 from PyRES.res import RES
 from PyRES.physical_room import PhRoom_dataset
@@ -24,7 +26,7 @@ if __name__ == '__main__':
     alias_decay_db = 0.0
     FIR_order = 2**8
     lr = 1e-3 
-    epochs = 100
+    epochs = 10
 
     # Physical room
     dataset_directory = './dataRES'
@@ -42,7 +44,7 @@ if __name__ == '__main__':
         room_name=room_name
     )
     n_M = physical_room.transducer_number['mcs']  # Number of microphones
-    n_L = physical_room.transducer_number['lds'] 
+    n_L = physical_room.transducer_number['lds']  # Number of loudspeakers
 
     print(f"Number of Mics:", n_M)
     print(f"Number of Loudspeakers:", n_L)
@@ -64,23 +66,24 @@ if __name__ == '__main__':
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Init Model
-    # needs full system loop, which is open loop + closed loop + possible transfer paths
-    # 
+    # needs full system loop, which is open loop + possible transfer paths  
     model = system.Shell(
-        core=res.open_loop(),
+        core=res.full_system_(),
         input_layer=system.Series(
-            dsp.FFT(nfft=nfft),
-            dsp.Transform(lambda x: x.diag_embed())
+            dsp.FFT(nfft=nfft)
+        ),
+        output_layer=system.Series(
+            dsp.iFFT(nfft=nfft)
         )
     )
 
-    evs_init = res.open_loop_eigenvalues()
+    #fse_init = res.full_system_eigenvalues()
     sys_nat,_,_ = res.system_simulation()
 
-    dataset_target = torch.zeros(1, samplerate, n_M)
+    dataset_target = torch.zeros(1, samplerate, 1)
     dataset_target[:,0,:] = 1
 
-    dataset_input = torch.zeros(1, samplerate, n_M)
+    dataset_input = torch.zeros(1, samplerate, 1)
     dataset_input[:,0,:] = 1
     
     print(f"Input Dataset Shape:", dataset_input.shape)
@@ -105,22 +108,17 @@ if __name__ == '__main__':
         train_dir = train_dir,
         device = device
     )
-    # MSE with the system response and a unit impulse 
-    criterion = MSE_evs_mod(
-        iter_num = 2**5,
-        freq_points = nfft//2+1,
-        samplerate = samplerate,
-        lowest_f = 20,
-        highest_f = samplerate / 2
-    )
+    
+    criterion = mse_loss(nfft=nfft, device=device)
+
     trainer.register_criterion(criterion, 1.0)
 
     trainer.train(train_loader, valid_loader)
     #torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
-    evs_opt = res.open_loop_eigenvalues()
+    #fse_opt = res.full_system_eigenvalues()
     sys_opt,_,sys_full_opt = res.system_simulation()
     
     # ------------------------- Plots -------------------------
-    plot_evs_compare(evs_init, evs_opt, samplerate, nfft, 20, samplerate / 2)
+    #plot_evs_compare(fse_init, fse_opt, samplerate, nfft, 20, samplerate / 2)
     plot_irs_compare(sys_nat, sys_full_opt, samplerate)
