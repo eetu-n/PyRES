@@ -90,7 +90,7 @@ def plot_room_setup(positions: OrderedDict):
     # Adjust layout
     fig.tight_layout()
     fig.subplots_adjust(left=0.00, top=1.3, right=0.5, bottom=-0.1)
-    plt.show(block=True)
+    plt.show(block=False)
 
     return None
 
@@ -157,7 +157,7 @@ def plot_coupling(energy_values: OrderedDict):
     axs[1,1].set_xticks(ticks=ticks, labels=ticks+1)
     axs[1,1].set_yticks([])
 
-    plt.show(block=True)
+    plt.show(block=False)
 
     return None
 
@@ -223,7 +223,7 @@ def plot_DRR(direct_to_reverb_ratios: OrderedDict):
     axs[1,1].set_xticks(ticks=ticks, labels=ticks+1)
     axs[1,1].set_yticks([])
 
-    plt.show(block=True)
+    plt.show(block=False)
 
     return None
 
@@ -253,7 +253,7 @@ def plot_distributions(distributions: torch.Tensor, n_bins: int, labels: list[st
     plt.ylabel('Density')
     plt.tight_layout()
 
-    plt.show(block=True)
+    plt.show(block=False)
 
     return None
 
@@ -288,7 +288,7 @@ def plot_evs_distribution(evs, fs: int, nfft: int, lower_f_lim: float, higher_f_
     plt.title(label)
     plt.tight_layout()
 
-    plt.show(block=True)
+    plt.show(block=False)
 
     return None
 
@@ -324,7 +324,7 @@ def plot_evs_compare(evs_init, evs_opt, fs: int, nfft: int, lower_f_lim: float, 
     plt.ylabel('Magnitude in dB')
     plt.tight_layout()
 
-    plt.show(block=True)
+    plt.show(block=False)
 
     return None
 
@@ -361,7 +361,7 @@ def plot_irs_compare(ir_1: torch.Tensor, ir_2: torch.Tensor, fs: int, label1='In
     fig.supxlabel('Time in seconds')
     fig.supylabel('Amplitude')
 
-    plt.show(block=True)
+    plt.show(block=False)
 
 def plot_spectrograms_compare(ir_1: torch.Tensor, ir_2: torch.Tensor, fs: int, nfft: int=2**10, noverlap: int=2**8, label1='Initialized', label2='Optimized') -> None:
     r"""
@@ -412,4 +412,4 @@ def plot_spectrograms_compare(ir_1: torch.Tensor, ir_2: torch.Tensor, fs: int, n
     cbar.ax.set_ylim(-100, 0)
     cbar.ax.set_yticks(ticks, ['-100','-80','-60','-40','-20','0'])
 
-    plt.show(block=True)
+    plt.show(block=False)

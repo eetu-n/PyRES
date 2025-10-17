@@ -203,3 +203,5 @@ if __name__ == '__main__':
 
     # Run script
     train_virtual_room(args)
+
+    input("Press Enter to exit")
