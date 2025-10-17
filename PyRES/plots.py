@@ -341,7 +341,7 @@ def plot_irs_compare(ir_1: torch.Tensor, ir_2: torch.Tensor, fs: int, label1='In
             - label2 (str, optional): Label for the second impulse response. Defaults to 'Optimized'.
             - title (str, optional): Title of the plot. Defaults to 'System Impulse Responses'.
     """
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':False})
     fig, axes = plt.subplots(2, 1, sharex=True, figsize=(8, 4), constrained_layout=True)
 
     time = torch.arange(ir_1.shape[0]) / fs

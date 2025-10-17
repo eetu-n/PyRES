@@ -336,10 +336,6 @@ class RES(object):
         # Stage → Audience
         H_SA = self.get_h_SA()  
 
-        # DSP (Virtual room): Microphones → Loudspeakers
-        V_ML = self.get_v_ML()  
-        G = self.get_G()     
-
         closed_loop_ = self.closed_loop()
 
         path_ = system.Series(OrderedDict([

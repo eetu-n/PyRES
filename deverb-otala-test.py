@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 import torch 
 import torch.nn as nn
+import loss
 
 from flamo import system, dsp
 from flamo.optimize.dataset import Dataset, load_dataset
@@ -14,9 +15,7 @@ from flamo.optimize.loss import mse_loss
 from PyRES.res import RES
 from PyRES.physical_room import PhRoom_dataset
 from PyRES.virtual_room import random_FIRs
-from PyRES.loss_functions import MSE_evs_mod
-#from PyRES.functional import system_equalization_curve
-from PyRES.plots import plot_evs_compare, plot_irs_compare
+from PyRES.plots import plot_irs_compare
 
 torch.manual_seed(141122)
 
@@ -24,9 +23,9 @@ if __name__ == '__main__':
     samplerate = 48000
     nfft = samplerate
     alias_decay_db = 0.0
-    FIR_order = 2**8
+    FIR_order = 2**12
     lr = 1e-3 
-    epochs = 10
+    epochs = 100
 
     # Physical room
     dataset_directory = './dataRES'
@@ -64,37 +63,38 @@ if __name__ == '__main__':
     res = RES(physical_room=physical_room, virtual_room=virtual_room)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    print("CUDA available:", torch.cuda.is_available())
+    print("Device count:", torch.cuda.device_count())
+    if torch.cuda.is_available():
+        print("Using GPU:", torch.cuda.get_device_name(0))
+    else:
+        print("Using CPU.")
 
     # Init Model
-    # needs full system loop, which is open loop + possible transfer paths  
+    # Full system loop, which is closed loop + possible transfer paths  
     model = system.Shell(
         core=res.full_system_(),
-        input_layer=system.Series(
-            dsp.FFT(nfft=nfft)
-        ),
-        output_layer=system.Series(
-            dsp.iFFT(nfft=nfft)
-        )
+        input_layer=dsp.FFT(nfft=nfft),
+        output_layer=dsp.iFFT(nfft=nfft)
     )
 
-    #fse_init = res.full_system_eigenvalues()
-    sys_nat,_,_ = res.system_simulation()
-
+    sys_nat,_,sys_full = res.system_simulation()
+    
     dataset_target = torch.zeros(1, samplerate, 1)
-    dataset_target[:,0,:] = 1
+    dataset_target[:,240,:] = 1 # Delayed to the prop delay from the loudspeaker. 
 
     dataset_input = torch.zeros(1, samplerate, 1)
-    dataset_input[:,0,:] = 1
-    
+    dataset_target[:,0,:] = 1
+    # dataset_input = sys_nat.permute(0, 1).unsqueeze(0)
     print(f"Input Dataset Shape:", dataset_input.shape)
     print(f"Target Dataset Shape:", dataset_target.shape)
     
     dataset = Dataset(
         input = dataset_input,
         target = dataset_target,
-        expand = samplerate,
+        expand = 2**4,
         device = device
-        )
+    )
     
     train_loader, valid_loader = load_dataset(dataset, batch_size=1, split=0.8, shuffle=False)
 
@@ -102,23 +102,20 @@ if __name__ == '__main__':
         net=model,
         max_epochs = epochs,
         lr = lr,
-        patience = 20,
-        patience_delta = 1e-5,
-        step_size = 1000,
+        patience_delta = -0.1,
         train_dir = train_dir,
         device = device
     )
     
-    criterion = mse_loss(nfft=nfft, device=device)
+    criterion = loss.ScaledMSELoss()
 
     trainer.register_criterion(criterion, 1.0)
 
+    print("Training started...")
     trainer.train(train_loader, valid_loader)
-    #torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+    print("Training ended.")
 
-    #fse_opt = res.full_system_eigenvalues()
     sys_opt,_,sys_full_opt = res.system_simulation()
     
     # ------------------------- Plots -------------------------
-    #plot_evs_compare(fse_init, fse_opt, samplerate, nfft, 20, samplerate / 2)
-    plot_irs_compare(sys_nat, sys_full_opt, samplerate)
+    plot_irs_compare(sys_nat, sys_opt, samplerate)
