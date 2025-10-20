@@ -25,7 +25,11 @@ if __name__ == '__main__':
     alias_decay_db = 0.0
     FIR_order = 2**12
     lr = 1e-3 
+<<<<<<< HEAD
     epochs = 100
+=======
+    epochs = 10
+>>>>>>> dev-saketh-deverb
 
     # Physical room
     dataset_directory = './dataRES'
@@ -78,13 +82,21 @@ if __name__ == '__main__':
         output_layer=dsp.iFFT(nfft=nfft)
     )
 
+<<<<<<< HEAD
     sys_nat,_,sys_full = res.system_simulation()
+=======
+    sys_nat,_,_ = res.system_simulation()
+>>>>>>> dev-saketh-deverb
     
     dataset_target = torch.zeros(1, samplerate, 1)
     dataset_target[:,240,:] = 1 # Delayed to the prop delay from the loudspeaker. 
 
     dataset_input = torch.zeros(1, samplerate, 1)
+<<<<<<< HEAD
     dataset_target[:,0,:] = 1
+=======
+    dataset_input[:,0,:] = 1
+>>>>>>> dev-saketh-deverb
     # dataset_input = sys_nat.permute(0, 1).unsqueeze(0)
     print(f"Input Dataset Shape:", dataset_input.shape)
     print(f"Target Dataset Shape:", dataset_target.shape)
@@ -92,7 +104,11 @@ if __name__ == '__main__':
     dataset = Dataset(
         input = dataset_input,
         target = dataset_target,
+<<<<<<< HEAD
         expand = 2**4,
+=======
+        expand = 2**8,
+>>>>>>> dev-saketh-deverb
         device = device
     )
     
@@ -115,7 +131,14 @@ if __name__ == '__main__':
     trainer.train(train_loader, valid_loader)
     print("Training ended.")
 
+<<<<<<< HEAD
     sys_opt,_,sys_full_opt = res.system_simulation()
     
     # ------------------------- Plots -------------------------
     plot_irs_compare(sys_nat, sys_opt, samplerate)
+=======
+    _,_,sys_full_opt = res.system_simulation()
+    
+    # ------------------------- Plots -------------------------
+    plot_irs_compare(sys_nat, sys_full_opt, samplerate)
+>>>>>>> dev-saketh-deverb
