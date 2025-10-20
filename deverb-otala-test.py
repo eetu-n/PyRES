@@ -92,7 +92,7 @@ if __name__ == '__main__':
     dataset = Dataset(
         input = dataset_input,
         target = dataset_target,
-        expand = 2**5,
+        expand = 2**8,
         device = device
     )
     
