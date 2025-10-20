@@ -14,7 +14,6 @@ from PyRES.physical_room import PhRoom
 from PyRES.virtual_room import VrRoom
 from PyRES.utils import expand_to_dimension
 
-
 # ==================================================================
 # ================ REVERBERATION ENHANCEMENT SYSTEM ================
 

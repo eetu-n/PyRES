@@ -10,7 +10,7 @@ import loss
 from flamo import system, dsp
 from flamo.optimize.dataset import Dataset, load_dataset
 from flamo.optimize.trainer import Trainer
-from flamo.optimize.loss import mse_loss
+from flamo.optimize.loss import mss_loss
 
 from PyRES.res import RES
 from PyRES.physical_room import PhRoom_dataset
@@ -23,13 +23,13 @@ if __name__ == '__main__':
     samplerate = 48000
     nfft = samplerate
     alias_decay_db = 0.0
-    FIR_order = 2**12
+    FIR_order = 2**18
     lr = 1e-3 
-    epochs = 10
+    epochs = 20
 
     # Physical room
     dataset_directory = './dataRES'
-    room_name = 'Otala'
+    room_name = 'MarsioExperimentalStudio3MicSetup2'
 
     train_dir = os.path.join('training_output', time.strftime("%Y%m%d-%H%M%S"))
     os.makedirs(train_dir, exist_ok=True)
@@ -81,7 +81,7 @@ if __name__ == '__main__':
     sys_nat,_,_ = res.system_simulation()
     
     dataset_target = torch.zeros(1, samplerate, 1)
-    dataset_target[:,240,:] = 1 # Delayed to the prop delay from the loudspeaker. 
+    dataset_target[:,1985,:] = 1 # Delayed to the prop delay from the loudspeaker. 
 
     dataset_input = torch.zeros(1, samplerate, 1)
     dataset_input[:,0,:] = 1
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     dataset = Dataset(
         input = dataset_input,
         target = dataset_target,
-        expand = 2**8,
+        expand = 2**7,
         device = device
     )
     
@@ -102,14 +102,16 @@ if __name__ == '__main__':
         net=model,
         max_epochs = epochs,
         lr = lr,
-        patience_delta = -0.1,
+        patience_delta = 10e-3,
         train_dir = train_dir,
         device = device
     )
     
-    criterion = loss.ScaledMSELoss()
+    #criterion = loss.ScaledMSELoss()
+    mss = mss_loss()
+    esr = loss.ESRLoss()
 
-    trainer.register_criterion(criterion, 1.0)
+    trainer.register_criterion(esr, 1.0)
 
     print("Training started...")
     trainer.train(train_loader, valid_loader)
