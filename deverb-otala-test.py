@@ -92,7 +92,7 @@ if __name__ == '__main__':
     dataset = Dataset(
         input = dataset_input,
         target = dataset_target,
-        expand = 2**7,
+        expand = 2**8,
         device = device
     )
     
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     
     #criterion = loss.ScaledMSELoss()
     mss = mss_loss()
-    esr = loss.ESRLoss()
+    esr = loss.EDCLoss()
 
     trainer.register_criterion(esr, 1.0)
 

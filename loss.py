@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import scipy.integrate as integral
+import numpy as np
 
 # MSE scaled up by 1000
 class ScaledMSELoss(nn.Module):
@@ -22,11 +23,45 @@ class ScaledMAELoss(nn.Module):
     def forward(self, input, target):
         return self.scale * self.mae(input, target)
 
+import torch
+import torch.nn as nn
+
 class EDCLoss(nn.Module):
-    def __init__(self, scale=None):
+    def __init__(self, eps=1e-8, reduction='mean'):
         super().__init__()
-        self.scale = scale
-        #self.input_edc = integral.quad(lambda)
+        self.eps = eps
+        self.reduction = reduction
+
+    def compute_edc(self, ir):
+        """
+        Compute the Energy Decay Curve (EDC) from an impulse response (IR).
+        EDC[n] = sum_{k=n}^{N-1} ir[k]^2 / sum_{k=0}^{N-1} ir[k]^2
+        """
+
+        energy = ir ** 2
+
+        cumulative_energy = torch.flip(torch.cumsum(torch.flip(energy, dims=[-1]), dim=-1), dims=[-1])
+
+        edc = cumulative_energy / (torch.sum(energy, dim=-1, keepdim=True) + self.eps)
+        return edc
+
+    def forward(self, input_ir, target_ir):
+        input_edc = self.compute_edc(input_ir)
+        target_edc = self.compute_edc(target_ir)
+
+        num = torch.sum((input_edc - target_edc) ** 2, dim=-1)
+        denom = torch.sum(target_edc ** 2, dim=-1) + self.eps
+        ratio = num / denom
+
+        loss = torch.log1p(ratio)
+
+        if self.reduction == 'mean':
+            return loss.mean()
+        elif self.reduction == 'sum':
+            return loss.sum()
+        else:
+            return loss
+
 
 class ESRLoss(nn.Module):
     """Error-to-Signal Ratio (ESR) loss.
