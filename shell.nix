@@ -24,12 +24,12 @@ pkgs.mkShell {
   postVenvCreation = ''
     echo "Creating virtualenv in $venvDir..."
     pip install --upgrade pip setuptools wheel
-    pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-    pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+    pip install torch torchaudio
+    pip install -r requirements.txt
   '';
 
   postShellHook = ''
-    export LD_LIBRARY_PATH=${pkgs.stdenv.cc.cc.lib}/lib:${pkgs.libsndfile.out}/lib:${pkgs.xorg.libX11}/lib:${pkgs.zlib}/lib:${pkgs.ffmpeg.lib}/lib:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=${pkgs.stdenv.cc.cc.lib}/lib:${pkgs.libsndfile.out}/lib:${pkgs.xorg.libX11}/lib:${pkgs.zlib}/lib:${pkgs.ffmpeg.lib}/lib:/usr/lib/wsl/lib:$LD_LIBRARY_PATH
     export MPLBACKEND="qtAgg"
     echo "Virtualenv is active at $venvDir"
   '';
