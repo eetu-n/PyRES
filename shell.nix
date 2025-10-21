@@ -16,6 +16,8 @@ pkgs.mkShell {
     gcc
     libsndfile
     xorg.libX11
+    zlib
+    ffmpeg
   ];
 
   venvDir = "./.venv";
@@ -27,7 +29,7 @@ pkgs.mkShell {
   '';
 
   postShellHook = ''
-    export LD_LIBRARY_PATH=${pkgs.stdenv.cc.cc.lib}/lib:${pkgs.libsndfile.out}/lib:${pkgs.xorg.libX11}/lib:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=${pkgs.stdenv.cc.cc.lib}/lib:${pkgs.libsndfile.out}/lib:${pkgs.xorg.libX11}/lib:${pkgs.zlib}/lib:${pkgs.ffmpeg.lib}/lib:$LD_LIBRARY_PATH
     export MPLBACKEND="qtAgg"
     echo "Virtualenv is active at $venvDir"
   '';
