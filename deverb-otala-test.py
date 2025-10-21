@@ -27,7 +27,6 @@ if __name__ == '__main__':
     print("Training started...")
     rds.train()
     print("Training ended.")
-
     # ------------------------- Plots -------------------------
     sys_nat,_,sys_full_opt = rds.res.system_simulation()
 
