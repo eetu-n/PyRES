@@ -188,7 +188,8 @@ class RES(object):
             **Args**:
                 - g (float): new system gain value (linear scale).
         """
-        assert isinstance(g, torch.FloatTensor), "G must be a torch.FloatTensor."
+        assert isinstance(g, torch.Tensor), "G must be a torch.Tensor"
+        assert torch.is_floating_point(g), "G must be floating point"
         self.G.assign_value(g*torch.ones(self.transducer_number['lds']))
 
     def compute_GBI(self, criterion: str='eigenvalue_magnitude') -> torch.Tensor:
