@@ -5,9 +5,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 import torch 
 import torch.nn as nn
-#import loss
-
-from loss import ESRLoss
 
 from flamo import system, dsp
 from flamo.optimize.dataset import Dataset, load_dataset
@@ -20,7 +17,7 @@ from PyRES.res import RES
 from PyRES.physical_room import PhRoom_dataset
 from PyRES.virtual_room import random_FIRs
 from PyRES.plots import plot_irs_compare, plot_spectrograms_compare
-from PyRES.loss_functions import BruteForceDirectPath, PunishHighValues
+from PyRES.loss_functions import BruteForceDirectPath, PunishHighValues, ESRLoss
 
 #torch.manual_seed(141122)
 
