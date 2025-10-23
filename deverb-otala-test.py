@@ -5,31 +5,39 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 import torch 
 import torch.nn as nn
-import loss
+#import loss
+
+from loss import ESRLoss
 
 from flamo import system, dsp
 from flamo.optimize.dataset import Dataset, load_dataset
-from flamo.optimize.trainer import Trainer
-from flamo.optimize.loss import mss_loss
+from flamo_trainer import Trainer
+
+import flamo.optimize.loss as loss
+from flamo_loss import edc_loss
 
 from PyRES.res import RES
 from PyRES.physical_room import PhRoom_dataset
 from PyRES.virtual_room import random_FIRs
-from PyRES.plots import plot_irs_compare
+from PyRES.plots import plot_irs_compare, plot_spectrograms_compare
+from PyRES.loss_functions import BruteForceDirectPath, PunishHighValues
 
-torch.manual_seed(141122)
+#torch.manual_seed(141122)
 
 if __name__ == '__main__':
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    torch.set_default_device(device)
     samplerate = 48000
     nfft = samplerate
     alias_decay_db = 0.0
     FIR_order = 2**18
-    lr = 1e-3 
-    epochs = 20
+    lr = 1e-2
+    epochs = 10
 
     # Physical room
     dataset_directory = './dataRES'
-    room_name = 'MarsioExperimentalStudio3MicSetup2'
+    room_name = 'Otala'
+    #room_name = 'MarsioExperimentalStudio3MicSetup1'
 
     train_dir = os.path.join('training_output', time.strftime("%Y%m%d-%H%M%S"))
     os.makedirs(train_dir, exist_ok=True)
@@ -40,7 +48,8 @@ if __name__ == '__main__':
         nfft=nfft,
         alias_decay_db=alias_decay_db,
         dataset_directory=dataset_directory,
-        room_name=room_name
+        room_name=room_name,
+        device = device
     )
     n_M = physical_room.transducer_number['mcs']  # Number of microphones
     n_L = physical_room.transducer_number['lds']  # Number of loudspeakers
@@ -56,13 +65,13 @@ if __name__ == '__main__':
         nfft=nfft,
         alias_decay_db=alias_decay_db,
         FIR_order=FIR_order,
-        requires_grad=True
+        requires_grad=True,
+        device = device
     )
 
     # Init RES object 
     res = RES(physical_room=physical_room, virtual_room=virtual_room)
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
     print("CUDA available:", torch.cuda.is_available())
     print("Device count:", torch.cuda.device_count())
     if torch.cuda.is_available():
@@ -78,13 +87,21 @@ if __name__ == '__main__':
         output_layer=dsp.iFFT(nfft=nfft)
     )
 
-    sys_nat,_,_ = res.system_simulation()
-    
-    dataset_target = torch.zeros(1, samplerate, 1)
-    dataset_target[:,1985,:] = 1 # Delayed to the prop delay from the loudspeaker. 
+    model.to(device)
 
-    dataset_input = torch.zeros(1, samplerate, 1)
+    sys_nat,_,_ = res.system_simulation()
+
+    print(sys_nat.shape)
+    
+    dataset_target = torch.zeros(1, samplerate, 1, device=device)
+    #dataset_target[:,1990,:] = 1 # Delayed to the prop delay from the loudspeaker. 
+    #dataset_target[0,0:2050,0] = sys_nat[0:2050,0]
+    dataset_target[0,0:290,0] = sys_nat[0:290,0]
+    dataset_target.to(device)
+
+    dataset_input = torch.zeros(1, samplerate, 1, device=device)
     dataset_input[:,0,:] = 1
+    dataset_input.to(device)
     # dataset_input = sys_nat.permute(0, 1).unsqueeze(0)
     print(f"Input Dataset Shape:", dataset_input.shape)
     print(f"Target Dataset Shape:", dataset_target.shape)
@@ -92,26 +109,43 @@ if __name__ == '__main__':
     dataset = Dataset(
         input = dataset_input,
         target = dataset_target,
-        expand = 2**7,
+        expand = 2**8,
         device = device
     )
     
-    train_loader, valid_loader = load_dataset(dataset, batch_size=1, split=0.8, shuffle=False)
+    train_loader, valid_loader = load_dataset(dataset, batch_size=1, split=0.8, shuffle=False, device=device)
 
     trainer = Trainer(
         net=model,
         max_epochs = epochs,
         lr = lr,
         patience_delta = 10e-3,
-        train_dir = train_dir,
+        #train_dir = train_dir,
         device = device
     )
-    
-    #criterion = loss.ScaledMSELoss()
-    mss = mss_loss()
-    esr = loss.ESRLoss()
 
-    trainer.register_criterion(esr, 1.0)
+    mse = loss.mse_loss(nfft=nfft, device=device)
+    esr = ESRLoss()
+
+    edc = edc_loss(
+        sample_rate = samplerate,
+        is_broadband = False,
+        n_fractions = 1,
+        energy_norm = False,
+        convergence = True,
+        clip = False,
+        device = device
+    )
+
+    apl = loss.AveragePower(device=device)
+
+    bfd = BruteForceDirectPath()
+    phv = PunishHighValues()
+
+    #trainer.register_criterion(mse, 0.7 * 1000)
+    trainer.register_criterion(esr, 2.0 * 1)
+    #trainer.register_criterion(bfd, 10)
+    trainer.register_criterion(phv, 10)
 
     print("Training started...")
     trainer.train(train_loader, valid_loader)
