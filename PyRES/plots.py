@@ -11,6 +11,8 @@ import torch
 # FLAMO
 from flamo.functional import mag2db, get_magnitude
 
+use_latex = True
+
 
 # ==================================================================
 # ========================== PHYSICAL ROOM =========================
@@ -35,7 +37,7 @@ def plot_room_setup(positions: OrderedDict):
         print("Audio setup data is not present for this room.")
         return None
 
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':use_latex})
     colorPalette = [
         "#E3C21C",
         "#3364D7",
@@ -114,7 +116,7 @@ def plot_coupling(energy_values: OrderedDict):
                 ecs_db[n_mcs:, :n_lds],
                 ecs_db[n_mcs:, n_lds:]]
 
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':use_latex})
     colorPalette = plt.get_cmap("viridis")
 
     fig, axs = plt.subplots(
@@ -181,7 +183,7 @@ def plot_DRR(direct_to_reverb_ratios: OrderedDict):
                 drrs_db[n_mcs:, :n_lds],
                 drrs_db[n_mcs:, n_lds:]]
 
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':use_latex})
     
     fig, axs = plt.subplots(
         nrows=2,
@@ -232,7 +234,7 @@ def plot_distributions(distributions: torch.Tensor, n_bins: int, labels: list[st
     if labels is None:
         labels = [f'Distribution {i+1}' for i in range(distributions.shape[1])]
 
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':use_latex})
     colorPalette = sns.color_palette("muted", n_colors=distributions.shape[1])
     
     plt.figure(figsize=(7, 5))
@@ -272,7 +274,7 @@ def plot_evs_distribution(evs, fs: int, nfft: int, lower_f_lim: float, higher_f_
     idx2 = int(nfft/fs * higher_f_lim)
     evs = mag2db(get_magnitude(evs[idx1:idx2,:].flatten()))
 
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':use_latex})
     colorPalette = sns.color_palette("pastel", n_colors=1)
 
     plt.figure(figsize=(3,5))
@@ -307,7 +309,7 @@ def plot_evs_compare(evs_init, evs_opt, fs: int, nfft: int, lower_f_lim: float, 
     idx2 = int(nfft/fs * higher_f_lim)
     evs = mag2db(get_magnitude(torch.cat((evs_init.unsqueeze(-1), evs_opt.unsqueeze(-1)), dim=2)[idx1:idx2,:,:]))
 
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':use_latex})
     colorPalette = sns.color_palette("pastel", n_colors=2)
 
     plt.figure(figsize=(5,5))
@@ -383,9 +385,9 @@ def plot_spectrograms_compare(ir_1: torch.Tensor, ir_2: torch.Tensor, fs: int, n
     Spec_opt = torch.tensor(Spec_opt).cpu()/max_val
     
 
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':use_latex})
     fig,axes = plt.subplots(2,1, sharex=False, sharey=True, figsize=(8,5), constrained_layout=True)
-    
+
     plt.subplot(2,1,1)
     plt.pcolormesh(t, f, 10*torch.log10(Spec_init).cpu(), cmap='magma', vmin=-100, vmax=0)
     plt.xlim(0, ir_1.shape[0]/fs)

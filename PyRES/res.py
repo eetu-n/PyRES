@@ -444,7 +444,7 @@ class RES(object):
         """
         self.get_v_ML().load_state_dict(state)
 
-    def save_state_to(self, directory: str) -> None:
+    def save_state_to(self, directory: str) -> str:
         r"""
         Saves the system current state.
 
@@ -453,4 +453,12 @@ class RES(object):
         """
         directory = directory.rstrip('/')
         state = self.get_v_ML_state()
-        torch.save(state, os.path.join(directory, time.strftime("%Y-%m-%d_%H.%M.%S.pt")))
+
+        filename = time.strftime("%Y-%m-%d_%H.%M.%S.pt")
+
+        torch.save(state, os.path.join(directory, filename))
+    
+    def load_state_from(self, dir: str, filename: str) -> None:
+
+        directory = dir.rstrip('/')
+        state = torch.load(os.path.join(directory, filename))
