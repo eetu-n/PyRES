@@ -12,6 +12,32 @@ from flamo.optimize.loss import mse_loss
 
 # ==================================================================
 
+class BruteForceDirectPath(nn.Module):
+    def __init__(
+            self,
+    ):
+        super().__init__()
+
+    def forward(self, input: torch.Tensor, target: torch.Tensor):
+        a = torch.sum(target)
+        b = torch.sum(target * input)
+
+        return abs(a - b)
+
+class PunishHighValues(nn.Module):
+    def __init__(
+            self,
+    ):
+        super().__init__()
+    
+    def forward(self, input: torch.Tensor, target: torch.Tensor):
+        a = torch.max(input)
+        b = torch.max(target)
+
+        return abs(a - b)
+    
+
+
 class MSE_evs_mod(nn.Module):
     def __init__(self, iter_num: int, freq_points: int, samplerate: int, lowest_f: float, highest_f: float):
         r"""

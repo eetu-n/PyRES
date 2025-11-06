@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+pyres-env
 
 # C extensions
 *.so
@@ -173,3 +174,4 @@ cython_debug/
 # PyRES
 /model_states
 /dataRES
+/results
