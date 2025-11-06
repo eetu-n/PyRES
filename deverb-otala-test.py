@@ -43,9 +43,6 @@ if __name__ == '__main__':
     alt_room_name = 'Otala_C1'
     #room_name = 'MarsioExperimentalStudio3MicSetup2'
 
-    #train_dir = os.path.join('training_output', time.strftime("%Y%m%d-%H%M%S"))
-    #os.makedirs(train_dir, exist_ok=True)
-
     # Loading Dataset 
     physical_room = PhRoom_dataset(
         fs=samplerate,
@@ -103,30 +100,21 @@ if __name__ == '__main__':
     model.to(device)
 
     sys_nat,_,_ = res.system_simulation()
-
-    #print(sys_nat.shape)
     
     dataset_target = torch.zeros(1, samplerate, 1, device=device)
-    #dataset_target[:,1990,:] = 1 # Delayed to the prop delay from the loudspeaker. 
-    #dataset_target[0,0:2050,0] = sys_nat[0:2050,0]
     dataset_target[0,0:290,0] = sys_nat[0:290,0]
     dataset_target.to(device)
 
     dataset_input = torch.zeros(1, samplerate, 1, device=device)
     dataset_input[:,0,:] = 1
     dataset_input.to(device)
-    # dataset_input = sys_nat.permute(0, 1).unsqueeze(0)
-    #print(f"Input Dataset Shape:", dataset_input.shape)
-    #print(f"Target Dataset Shape:", dataset_target.shape)
+    print(f"Input Dataset Shape:", dataset_input.shape)
+    print(f"Target Dataset Shape:", dataset_target.shape)
     
     dataset = Dataset(
         input = dataset_input,
         target = dataset_target,
-<<<<<<< HEAD
-        expand = 2**8,
-=======
         expand = expansion,
->>>>>>> b1aa51348df26b2dd99d639af379f2b66d2bdf7c
         device = device
     )
     
@@ -140,16 +128,8 @@ if __name__ == '__main__':
         patience = 5,
         step_size = step_size,
         step_factor = step_factor,
-        #train_dir = train_dir,
         device = device
     )
-<<<<<<< HEAD
-    
-    #criterion = loss.ScaledMSELoss()
-    mss = mss_loss()
-    esr = loss.EDCLoss()
-=======
->>>>>>> b1aa51348df26b2dd99d639af379f2b66d2bdf7c
 
     mse = loss.mse_loss(nfft=nfft, device=device)
     esr = ESRLoss()
@@ -169,9 +149,7 @@ if __name__ == '__main__':
     bfd = BruteForceDirectPath()
     phv = PunishHighValues()
 
-    #trainer.register_criterion(mse, 0.7 * 1000)
     trainer.register_criterion(esr, 2.0 * 1)
-    #trainer.register_criterion(bfd, 10)
     trainer.register_criterion(phv, 10)
 
     print("Training started...")
@@ -189,4 +167,3 @@ if __name__ == '__main__':
     # ------------------------- Plots -------------------------
     plot_irs_compare(sys_nat, sys_full_opt, samplerate)
     plot_irs_compare(sys_full_opt, alt_sys, samplerate)
-    #plot_spectrograms_compare(sys_nat, sys_full_opt, samplerate, nfft = 2**9)
