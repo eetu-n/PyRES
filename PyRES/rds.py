@@ -80,10 +80,10 @@ class RDS(object):
 
         natural_system_response, _, _ = self.res.system_simulation()
 
-        self.dirct_path_delay = find_direct_path(natural_system_response)
+        self.dirct_path_delay = find_direct_path(natural_system_response[:,0]) + int(fs * 0.002) #TODO: Make this not dumb
 
         target = torch.zeros(1, fs, 1) #TODO: Always one second?
-        target[0,0:self.dirct_path_delay,0] = natural_system_response[0,0:self.dirct_path_delay,0]
+        target[0,0:self.dirct_path_delay,0] = natural_system_response[0:self.dirct_path_delay,0]
 
         input = torch.zeros(1, fs, 1) #TODO: Always this shape?
         input[:,0,:] = 1
