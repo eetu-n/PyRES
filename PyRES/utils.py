@@ -39,7 +39,7 @@ def expand_to_dimension(array: torch.Tensor, dim: int) -> torch.Tensor:
 
 import matplotlib.pyplot as plt
 
-def find_direct_path(rir: torch.Tensor, fs: int) -> int:
+def find_direct_path(rir: torch.Tensor) -> int:
     f"""
     Detects the direct path onset in a room impulse response.
 
