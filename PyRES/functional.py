@@ -249,7 +249,7 @@ def energy_coupling(rir: torch.Tensor, fs: int, decay_interval: str='T30') -> to
     for i in range(rir.shape[1]):
         for j in range(rir.shape[2]):
             r = rir[:,i,j]
-            index1 = find_direct_path(r, fs=fs)
+            index1 = find_direct_path(r)
             rt = reverb_time(r, fs=fs, decay_interval=decay_interval)
             if (torch.isnan(rt) and decay_interval == 'T30') or rt > 1.5*prev_rt:
                 rt = reverb_time(r, fs=fs, decay_interval='T20')
@@ -283,7 +283,7 @@ def direct_to_reverb_ratio(rir: torch.Tensor, fs: int, decay_interval: str='T30'
     for i in range(rir.shape[1]):
         for j in range(rir.shape[2]):
             r = rir[:,i,j]
-            index1 = find_direct_path(r, fs=fs)
+            index1 = find_direct_path(r)
             index2 = (index1 + fs*torch.tensor([0.005])).long()
             rt = reverb_time(r, fs=fs, decay_interval=decay_interval)
             if (torch.isnan(rt) and decay_interval == 'T30') or rt > 1.5*prev_rt:
