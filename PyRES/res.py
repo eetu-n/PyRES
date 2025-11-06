@@ -14,7 +14,6 @@ from PyRES.physical_room import PhRoom
 from PyRES.virtual_room import VrRoom
 from PyRES.utils import expand_to_dimension
 
-
 # ==================================================================
 # ================ REVERBERATION ENHANCEMENT SYSTEM ================
 
@@ -189,7 +188,8 @@ class RES(object):
             **Args**:
                 - g (float): new system gain value (linear scale).
         """
-        assert isinstance(g, torch.FloatTensor), "G must be a torch.FloatTensor."
+        assert isinstance(g, torch.Tensor), "G must be a torch.Tensor"
+        assert torch.is_floating_point(g), "G must be floating point"
         self.G.assign_value(g*torch.ones(self.transducer_number['lds']))
 
     def compute_GBI(self, criterion: str='eigenvalue_magnitude') -> torch.Tensor:
@@ -444,7 +444,7 @@ class RES(object):
         """
         self.get_v_ML().load_state_dict(state)
 
-    def save_state_to(self, directory: str) -> None:
+    def save_state_to(self, directory: str) -> str:
         r"""
         Saves the system current state.
 
@@ -453,4 +453,12 @@ class RES(object):
         """
         directory = directory.rstrip('/')
         state = self.get_v_ML_state()
-        torch.save(state, os.path.join(directory, time.strftime("%Y-%m-%d_%H.%M.%S.pt")))
+
+        filename = time.strftime("%Y-%m-%d_%H.%M.%S.pt")
+
+        torch.save(state, os.path.join(directory, filename))
+    
+    def load_state_from(self, dir: str, filename: str) -> None:
+
+        directory = dir.rstrip('/')
+        state = torch.load(os.path.join(directory, filename))

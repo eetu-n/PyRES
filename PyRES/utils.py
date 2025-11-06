@@ -39,7 +39,7 @@ def expand_to_dimension(array: torch.Tensor, dim: int) -> torch.Tensor:
 
 import matplotlib.pyplot as plt
 
-def find_direct_path(rir: torch.Tensor, fs: int) -> int:
+def find_direct_path(rir: torch.Tensor) -> int:
     f"""
     Detects the direct path onset in a room impulse response.
 
@@ -60,7 +60,7 @@ def find_direct_path(rir: torch.Tensor, fs: int) -> int:
     env = max_pool1d(rir_abs.view(1, 1, -1), kernel_size=kernel_size, stride=1, padding=pad)[0, 0]
 
     env_threshold = 0.5 * torch.max(env).item()
-    peaks_env, properties_env = find_peaks(env.numpy(), height=env_threshold)
+    peaks_env, properties_env = find_peaks(env.cpu().numpy(), height=env_threshold)
     
     if len(peaks_env) == 0:
         raise RuntimeError("No peaks found in the envelope.")
@@ -74,7 +74,7 @@ def find_direct_path(rir: torch.Tensor, fs: int) -> int:
     # Now find actual peak within the envelope region
     rir_segment = rir_abs[env_peak_interval]
     rir_threshold = 0.5 * torch.max(rir_segment).item()
-    peaks_h, _ = find_peaks(rir_segment.numpy(), height=rir_threshold)
+    peaks_h, _ = find_peaks(rir_segment.cpu().numpy(), height=rir_threshold)
 
     if len(peaks_h) == 0:
         raise RuntimeError("No peaks found in the impulse response segment.")

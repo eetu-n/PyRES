@@ -37,7 +37,8 @@ class PhRoom(object):
             self,
             fs: int,
             nfft: int,
-            alias_decay_db: float
+            alias_decay_db: float,
+            device: torch.device = torch.get_default_device()
         ) -> None:
         r"""
         Initializes the PhRoom object.
@@ -46,6 +47,7 @@ class PhRoom(object):
                 - fs (int): Sample rate [Hz].
                 - nfft (int): FFT size.
                 - alias_decay_db (float): Anti-time-aliasing decay [dB].
+                - the device to learn with, usually "cuda" or "cpu"
 
             **Attributes**:
                 - fs (int): Sample rate [Hz].
@@ -65,6 +67,8 @@ class PhRoom(object):
         self.fs = fs
         self.nfft = nfft
         self.alias_decay_db = alias_decay_db
+
+        self.device = device
 
         self.transducer_number = OrderedDict(
             {'stg': int, 'mcs': int, 'lds': int, 'aud': int}
@@ -228,36 +232,44 @@ class PhRoom(object):
             size=(rir_length, n_A, n_S),
             nfft=self.nfft,
             requires_grad=False,
-            alias_decay_db=self.alias_decay_db
+            alias_decay_db=self.alias_decay_db,
+            device = self.device
         )
         h_SA.assign_value(rirs_SA)
+        h_SA.to(self.device)
 
         # Stage to Microphones
         h_SM = dsp.Filter(
             size=(rir_length, n_M, n_S),
             nfft=self.nfft,
             requires_grad=False,
-            alias_decay_db=self.alias_decay_db
+            alias_decay_db=self.alias_decay_db,
+            device = self.device
         )
         h_SM.assign_value(rirs_SM)
+        h_SM.to(self.device)
 
         # Loudspeakers to Audience
         h_LM = dsp.Filter(
             size=(rir_length, n_M, n_L),
             nfft=self.nfft,
             requires_grad=False,
-            alias_decay_db=self.alias_decay_db
+            alias_decay_db=self.alias_decay_db,
+            device = self.device
         )
         h_LM.assign_value(rirs_LM)
+        h_LM.to(self.device)
 
         # Loudspeakers to Microphones
         h_LA = dsp.Filter(
             size=(rir_length, n_A, n_L),
             nfft=self.nfft,
             requires_grad=False,
-            alias_decay_db=self.alias_decay_db
+            alias_decay_db=self.alias_decay_db,
+            device = self.device
         )
         h_LA.assign_value(rirs_LA)
+        h_LA.to(self.device)
 
         return h_SA, h_SM, h_LA, h_LM
     
@@ -318,6 +330,7 @@ class PhRoom_dataset(PhRoom):
             alias_decay_db: float,
             dataset_directory: str,
             room_name: str,
+            device: torch.device = torch.get_default_device(),
             stg_idx: list[int] = None,
             mcs_idx: list[int] = None,
             lds_idx: list[int] = None,
@@ -356,10 +369,13 @@ class PhRoom_dataset(PhRoom):
         super().__init__(
             fs=fs,
             nfft=nfft,
-            alias_decay_db=alias_decay_db
+            alias_decay_db=alias_decay_db,
+            device = device
         )
 
         self.room_name = room_name
+
+        self.device = device
 
         self.high_level_info = get_hl_info(
             ds_dir=dataset_directory,
@@ -415,7 +431,8 @@ class PhRoom_dataset(PhRoom):
             ds_dir=ds_dir,
             room_dir=self.room_directory,
             transducer_indices=self.transducer_indices,
-            target_fs=self.fs
+            target_fs=self.fs,
+            device = self.device
         )
 
         # Energy normalization
@@ -648,6 +665,7 @@ class PhRoom_wgn(PhRoom):
                 pos_receivers=self.transducer_positions['mcs']
             )
         self.h_LM.assign_value(new_rirs)
+        self.h_LM.to(self.device)
 
         self.energy_coupling['LM'] = energy_coupling(new_rirs, fs=self.fs)
         self.direct_to_reverb_ratio['LM'] = direct_to_reverb_ratio(new_rirs, fs=self.fs)

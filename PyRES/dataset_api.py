@@ -276,6 +276,7 @@ def get_rirs(
         room_dir: str,
         transducer_indices: OrderedDict,
         target_fs: int,
+        device: torch.device = torch.get_default_device()
     ) -> tuple[OrderedDict, int]:
     r"""
     Loads the requested room impulse responses (RIRs) from the dataset and returns them in an OrderedDict.
@@ -303,7 +304,8 @@ def get_rirs(
         receiver_idx=transducer_indices['aud'],
         origin_fs=rir_fs,
         target_fs=target_fs,
-        origin_len=rir_length
+        origin_len=rir_length, 
+        device = device
     )
     # Stage to system
     stg_to_sys, _ = get_rirs_of(
@@ -312,7 +314,8 @@ def get_rirs(
         receiver_idx=transducer_indices['mcs'],
         origin_fs=rir_fs,
         target_fs=target_fs,
-        origin_len=rir_length
+        origin_len=rir_length, 
+        device = device
     )
     # System to audience
     sys_to_aud, _ = get_rirs_of(
@@ -321,7 +324,8 @@ def get_rirs(
         receiver_idx=transducer_indices['aud'],
         origin_fs=rir_fs,
         target_fs=target_fs,
-        origin_len=rir_length
+        origin_len=rir_length, 
+        device = device
     )
     # System to system
     sys_to_sys, rir_length = get_rirs_of(
@@ -330,7 +334,8 @@ def get_rirs(
         receiver_idx=transducer_indices['mcs'],
         origin_fs=rir_fs,
         target_fs=target_fs,
-        origin_len=rir_length
+        origin_len=rir_length,
+        device = device
     )
 
     rirs = OrderedDict()
@@ -347,7 +352,8 @@ def get_rirs_of(
         receiver_idx: int,
         origin_fs: int,
         target_fs: int,
-        origin_len: int
+        origin_len: int,
+        device: torch.device = torch.get_default_device()
     ) -> tuple[torch.Tensor, int]:
     r"""
     Loads the requested room impulse responses from the dataset and returns them in a matrix.
@@ -372,7 +378,7 @@ def get_rirs_of(
         n_samples = int(origin_len * target_fs / origin_fs)
         resample = True
 
-    matrix = torch.zeros(n_samples, n_receivers, n_emitters)
+    matrix = torch.zeros(n_samples, n_receivers, n_emitters, device = device)
     for i,r in enumerate(receiver_idx):
         for j,e in enumerate(emitter_idx):
             filename = f"{path}/E{e+1:03d}_R{r+1:03d}_M01.wav"

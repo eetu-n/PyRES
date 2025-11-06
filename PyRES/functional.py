@@ -222,7 +222,7 @@ def reverb_time(rir: torch.Tensor, fs: int, decay_interval: str='T30') -> torch.
             - torch.Tensor: Reverberation time [s].
     """
 
-    rir = rir.squeeze().numpy()
+    rir = rir.squeeze().cpu().numpy()
     pf_rir = pf.Signal(data=rir, sampling_rate=fs, domain='time')
     edc = pr.energy_decay_curve_chu(data=pf_rir, time_shift=False)
     rt = pr.reverberation_time_energy_decay_curve(energy_decay_curve=edc, T=decay_interval)
@@ -249,7 +249,7 @@ def energy_coupling(rir: torch.Tensor, fs: int, decay_interval: str='T30') -> to
     for i in range(rir.shape[1]):
         for j in range(rir.shape[2]):
             r = rir[:,i,j]
-            index1 = find_direct_path(r, fs=fs)
+            index1 = find_direct_path(r)
             rt = reverb_time(r, fs=fs, decay_interval=decay_interval)
             if (torch.isnan(rt) and decay_interval == 'T30') or rt > 1.5*prev_rt:
                 rt = reverb_time(r, fs=fs, decay_interval='T20')
@@ -283,7 +283,7 @@ def direct_to_reverb_ratio(rir: torch.Tensor, fs: int, decay_interval: str='T30'
     for i in range(rir.shape[1]):
         for j in range(rir.shape[2]):
             r = rir[:,i,j]
-            index1 = find_direct_path(r, fs=fs)
+            index1 = find_direct_path(r)
             index2 = (index1 + fs*torch.tensor([0.005])).long()
             rt = reverb_time(r, fs=fs, decay_interval=decay_interval)
             if (torch.isnan(rt) and decay_interval == 'T30') or rt > 1.5*prev_rt:

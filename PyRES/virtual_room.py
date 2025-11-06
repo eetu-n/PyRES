@@ -23,7 +23,8 @@ class VrRoom(object):
         n_L: int,
         fs: int,
         nfft: int,
-        alias_decay_db: float=0.0
+        alias_decay_db: float=0.0,
+        device: str = torch.get_default_device()
     ):
         r"""
         Initializes the virtual room.
@@ -52,6 +53,7 @@ class VrRoom(object):
         self.fs = fs
         self.nfft = nfft
         self.alias_decay_db = alias_decay_db
+        self.device = device
 
         self.v_ML: system.Series
 
@@ -84,7 +86,8 @@ class VrRoom(object):
             size = (outputs, inputs),
             nfft = self.nfft,
             alias_decay_db = self.alias_decay_db,
-            requires_grad=requires_grad
+            requires_grad=requires_grad,
+            device = self.device
         )
         if connections == 'mixing':
             # Mixing matrix
@@ -216,7 +219,8 @@ class random_FIRs(VrRoom):
         nfft: int=2**11,
         alias_decay_db: float=0.0,
         FIR_order: int=100,
-        requires_grad: bool=False
+        requires_grad: bool=False,
+        device: str = torch.get_default_device()
     ) -> None:
         r"""
         Initializes the random FIR filter.
@@ -241,7 +245,8 @@ class random_FIRs(VrRoom):
             n_L=n_L,
             fs=fs,
             nfft=nfft,
-            alias_decay_db=alias_decay_db
+            alias_decay_db=alias_decay_db,
+            device = device
         )
         self.FIR_order = FIR_order
         
@@ -250,9 +255,11 @@ class random_FIRs(VrRoom):
                 size=(self.FIR_order, self.n_L, self.n_M),
                 nfft=self.nfft,
                 requires_grad=requires_grad,
-                alias_decay_db=self.alias_decay_db
+                alias_decay_db=self.alias_decay_db,
+                device = device
             )
         )
+        self.v_ML.to(device)
 
 
 class phase_cancellation(VrRoom):
