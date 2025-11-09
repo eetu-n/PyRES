@@ -20,12 +20,12 @@ if __name__ == '__main__':
     rds = RDS(
         fs = fs,
         FIR_order = 2**16,
-        expansion = 2**10,
+        expansion = 2**8,
         epochs = 10,
         room_name = "MarsioExperimentalStudio3MicSetup2",
-        #lds_idx = list(range(0,11,2)),
-        lds_idx = [0, 5],
-        mcs_idx = [2, 3],
+        lds_idx = list(range(0,11,2)),
+        #lds_idx = [0, 5],
+        mcs_idx = [0, 2, 4, 6],
         device = torch.get_default_device()
     )
 

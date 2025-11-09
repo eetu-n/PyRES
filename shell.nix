@@ -32,9 +32,11 @@ pkgs.mkShell {
   postShellHook = ''
     export LD_LIBRARY_PATH=${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH
     export LD_LIBRARY_PATH=${pkgs.xorg.libX11}/lib:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=${pkgs.ffmpeg.lib}/lib:$LD_LIBRARY_PATH
     export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
     export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH
     export MPLBACKEND="qtAgg"
+    export QT_QPA_PLATFORM=xcb
     echo "Virtualenv is active at $venvDir"
   '';
 }

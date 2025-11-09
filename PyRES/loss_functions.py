@@ -58,6 +58,9 @@ class ESRLoss(nn.Module):
 
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         # ESR per element
+        input[input.abs() <= 0.0002] = 0
+        target[target.abs() <= 0.0002] = 0
+
         num = (target - input) ** 2
         denom = (target ** 2) + self.eps
         esr = num / denom  # shape: (B, C, N)
