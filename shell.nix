@@ -12,6 +12,7 @@ pkgs.mkShell {
     python.pkgs.pip
     python.pkgs.tkinter
     python.pkgs.pyqt6
+    python.pkgs.pysoundfile
     stdenv
     gcc
     libsndfile
@@ -29,7 +30,10 @@ pkgs.mkShell {
   '';
 
   postShellHook = ''
-    export LD_LIBRARY_PATH=${pkgs.stdenv.cc.cc.lib}/lib:${pkgs.libsndfile.out}/lib:${pkgs.xorg.libX11}/lib:${pkgs.zlib}/lib:${pkgs.ffmpeg.lib}/lib:/usr/lib/wsl/lib:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=${pkgs.xorg.libX11}/lib:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=${pkgs.zlib}/lib:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH
     export MPLBACKEND="qtAgg"
     echo "Virtualenv is active at $venvDir"
   '';
