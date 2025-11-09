@@ -36,6 +36,11 @@ class RDS(object):
             dataset_directory: str = './dataRES',
             room_name: str = 'Otala',
 
+            stg_idx: list[int] = None,
+            mcs_idx: list[int] = None,
+            lds_idx: list[int] = None,
+            aud_idx: list[int] = None,
+
             device: torch.device = torch.get_default_device()
 
         ) -> None:
@@ -53,6 +58,10 @@ class RDS(object):
             alias_decay_db=alias_decay_db,
             dataset_directory=dataset_directory,
             room_name=room_name,
+            stg_idx = stg_idx,
+            mcs_idx = mcs_idx,
+            lds_idx = lds_idx,
+            aud_idx = aud_idx,
             device = device
         )
 
@@ -80,7 +89,7 @@ class RDS(object):
 
         natural_system_response, _, _ = self.res.system_simulation()
 
-        self.dirct_path_delay = find_direct_path(natural_system_response[:,0]) + int(fs * 0.002) #TODO: Make this not dumb
+        self.dirct_path_delay = find_direct_path(natural_system_response[:,0]) + int(fs * 0.001) #TODO: Make this not dumb
 
         target = torch.zeros(1, fs, 1) #TODO: Always one second?
         target[0,0:self.dirct_path_delay,0] = natural_system_response[0:self.dirct_path_delay,0]
@@ -102,8 +111,8 @@ class RDS(object):
             net=self.model,
             max_epochs = epochs,
             lr = lr,
-            patience_delta = 0.01,
-            patience = 5,
+            patience_delta = 0.005,
+            patience = 3,
             step_size = step_size,
             step_factor = step_factor,
             train_dir = train_dir,

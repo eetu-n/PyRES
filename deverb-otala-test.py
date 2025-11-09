@@ -13,15 +13,20 @@ if __name__ == '__main__':
         device = torch.device("cpu")
 
     torch.set_default_device(device)
+    #print(torch.get_default_device())
 
     fs = 48000
 
     rds = RDS(
         fs = fs,
         FIR_order = 2**16,
-        expansion = 2**6,
+        expansion = 2**10,
         epochs = 10,
-        room_name = "Otala"
+        room_name = "MarsioExperimentalStudio3MicSetup2",
+        #lds_idx = list(range(0,11,2)),
+        lds_idx = [0, 5],
+        mcs_idx = [2, 3],
+        device = torch.get_default_device()
     )
 
     print("Training started...")
