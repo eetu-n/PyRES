@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 #import loss
 
-from loss import ESRLoss, ThresholdedEDCLoss
+import loss
 
 from flamo import system, dsp
 from flamo.optimize.dataset import Dataset, load_dataset
