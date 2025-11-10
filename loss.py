@@ -62,7 +62,18 @@ class EDCLoss(nn.Module):
         else:
             return loss
 
-
+class ThresholdedEDCLoss(nn.Module):
+    def __init__(self, threshold_db):
+        super().__init__()
+        self.threshold_linear = 10**(threshold_db / 20)
+    
+    def forward(self, output, target):
+        output_thresh = torch.where(torch.abs(output) < self.threshold_linear, 
+                                torch.zeros_like(output), output)
+        target_thresh = torch.where(torch.abs(target) < self.threshold_linear, 
+                                torch.zeros_like(target), target)
+        
+        return EDCLoss()(output_thresh, target_thresh)
 class ESRLoss(nn.Module):
     """Error-to-Signal Ratio (ESR) loss.
     

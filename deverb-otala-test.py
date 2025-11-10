@@ -19,18 +19,6 @@ from PyRES.plots import plot_irs_compare
 
 torch.manual_seed(141122)
 
-class ThresholdedEDCLoss(nn.Module):
-    def __init__(self, threshold_db):
-        super().__init__()
-        self.threshold_linear = 10**(threshold_db / 20)
-    
-    def forward(self, output, target):
-        output_thresh = torch.where(torch.abs(output) < self.threshold_linear, 
-                                torch.zeros_like(output), output)
-        target_thresh = torch.where(torch.abs(target) < self.threshold_linear, 
-                                torch.zeros_like(target), target)
-        
-        return loss.EDCLoss()(output_thresh, target_thresh)
 
 if __name__ == '__main__':
     samplerate = 48000
@@ -124,7 +112,7 @@ if __name__ == '__main__':
 
     #criterion = loss.ScaledMSELoss()
     mss = mss_loss()
-    esr = ThresholdedEDCLoss(threshold_db=threshold_db)
+    esr = loss.ThresholdedEDCLoss(threshold_db=threshold_db)
 
     trainer.register_criterion(esr, 1.0)
 
