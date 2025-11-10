@@ -11,6 +11,8 @@ import torch
 # FLAMO
 from flamo.functional import mag2db, get_magnitude
 
+use_latex = True
+
 
 # ==================================================================
 # ========================== PHYSICAL ROOM =========================
@@ -35,7 +37,7 @@ def plot_room_setup(positions: OrderedDict):
         print("Audio setup data is not present for this room.")
         return None
 
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':use_latex})
     colorPalette = [
         "#E3C21C",
         "#3364D7",
@@ -114,7 +116,7 @@ def plot_coupling(energy_values: OrderedDict):
                 ecs_db[n_mcs:, :n_lds],
                 ecs_db[n_mcs:, n_lds:]]
 
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':use_latex})
     colorPalette = plt.get_cmap("viridis")
 
     fig, axs = plt.subplots(
@@ -140,20 +142,20 @@ def plot_coupling(energy_values: OrderedDict):
 
     labelpad = 20 if n_mcs<10 else 10
     axs[0,0].set_ylabel('Mic', labelpad=labelpad)
-    ticks = torch.arange(start=0, end=n_mcs, step=int(torch.ceil(torch.sqrt(torch.tensor(n_mcs)))) if n_mcs>2 else 1).numpy()
+    ticks = torch.arange(start=0, end=n_mcs, step=int(torch.ceil(torch.sqrt(torch.tensor(n_mcs)))) if n_mcs>2 else 1).cpu().numpy()
     axs[0,0].set_yticks(ticks=ticks, labels=ticks+1)
     axs[0,0].set_xticks([])
     axs[0,1].set_xticks([])
     axs[0,1].set_yticks([])
     labelpad = 20 if n_aud<10 else 10
     axs[1,0].set_ylabel('Aud', labelpad=labelpad)
-    ticks = torch.arange(start=0, end=n_aud, step=int(torch.ceil(torch.sqrt(torch.tensor(n_aud)))) if n_aud>2 else 1).numpy()
+    ticks = torch.arange(start=0, end=n_aud, step=int(torch.ceil(torch.sqrt(torch.tensor(n_aud)))) if n_aud>2 else 1).cpu().numpy()
     axs[1,0].set_yticks(ticks=ticks, labels=ticks+1)
     axs[1,0].set_xlabel('Ldsp', labelpad=5)
-    ticks = torch.arange(start=0, end=n_lds, step=int(torch.ceil(torch.sqrt(torch.tensor(n_lds)))) if n_lds>2 else 1).numpy()
+    ticks = torch.arange(start=0, end=n_lds, step=int(torch.ceil(torch.sqrt(torch.tensor(n_lds)))) if n_lds>2 else 1).cpu().numpy()
     axs[1,0].set_xticks(ticks=ticks, labels=ticks+1)
     axs[1,1].set_xlabel('Stage', labelpad=5)
-    ticks = torch.arange(start=0, end=n_stg, step=int(torch.ceil(torch.sqrt(torch.tensor(n_stg)))) if n_stg>2 else 1).numpy()
+    ticks = torch.arange(start=0, end=n_stg, step=int(torch.ceil(torch.sqrt(torch.tensor(n_stg)))) if n_stg>2 else 1).cpu().numpy()
     axs[1,1].set_xticks(ticks=ticks, labels=ticks+1)
     axs[1,1].set_yticks([])
 
@@ -181,7 +183,7 @@ def plot_DRR(direct_to_reverb_ratios: OrderedDict):
                 drrs_db[n_mcs:, :n_lds],
                 drrs_db[n_mcs:, n_lds:]]
 
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':use_latex})
     
     fig, axs = plt.subplots(
         nrows=2,
@@ -206,20 +208,20 @@ def plot_DRR(direct_to_reverb_ratios: OrderedDict):
 
     labelpad = 20 if n_mcs<10 else 10
     axs[0,0].set_ylabel('Mic', labelpad=labelpad)
-    ticks = torch.arange(start=0, end=n_mcs, step=int(torch.ceil(torch.sqrt(torch.tensor(n_mcs)))) if n_mcs>2 else 1).numpy()
+    ticks = torch.arange(start=0, end=n_mcs, step=int(torch.ceil(torch.sqrt(torch.tensor(n_mcs)))) if n_mcs>2 else 1).cpu().numpy()
     axs[0,0].set_yticks(ticks=ticks, labels=ticks+1)    
     axs[0,0].set_xticks([])
     axs[0,1].set_xticks([])
     axs[0,1].set_yticks([])
     labelpad = 20 if n_aud<10 else 10
     axs[1,0].set_ylabel('Aud', labelpad=labelpad)
-    ticks = torch.arange(start=0, end=n_aud, step=int(torch.ceil(torch.sqrt(torch.tensor(n_aud)))) if n_aud>2 else 1).numpy()
+    ticks = torch.arange(start=0, end=n_aud, step=int(torch.ceil(torch.sqrt(torch.tensor(n_aud)))) if n_aud>2 else 1).cpu().numpy()
     axs[1,0].set_yticks(ticks=ticks, labels=ticks+1)
     axs[1,0].set_xlabel('Ldsp', labelpad=10)
-    ticks = torch.arange(start=0, end=n_lds, step=int(torch.ceil(torch.sqrt(torch.tensor(n_lds)))) if n_lds>2 else 1).numpy()
+    ticks = torch.arange(start=0, end=n_lds, step=int(torch.ceil(torch.sqrt(torch.tensor(n_lds)))) if n_lds>2 else 1).cpu().numpy()
     axs[1,0].set_xticks(ticks=ticks, labels=ticks+1)
     axs[1,1].set_xlabel('Stage', labelpad=10)
-    ticks = torch.arange(start=0, end=n_stg, step=int(torch.ceil(torch.sqrt(torch.tensor(n_stg)))) if n_stg>2 else 1).numpy()
+    ticks = torch.arange(start=0, end=n_stg, step=int(torch.ceil(torch.sqrt(torch.tensor(n_stg)))) if n_stg>2 else 1).cpu().numpy()
     axs[1,1].set_xticks(ticks=ticks, labels=ticks+1)
     axs[1,1].set_yticks([])
 
@@ -232,7 +234,7 @@ def plot_distributions(distributions: torch.Tensor, n_bins: int, labels: list[st
     if labels is None:
         labels = [f'Distribution {i+1}' for i in range(distributions.shape[1])]
 
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':use_latex})
     colorPalette = sns.color_palette("muted", n_colors=distributions.shape[1])
     
     plt.figure(figsize=(7, 5))
@@ -272,7 +274,7 @@ def plot_evs_distribution(evs, fs: int, nfft: int, lower_f_lim: float, higher_f_
     idx2 = int(nfft/fs * higher_f_lim)
     evs = mag2db(get_magnitude(evs[idx1:idx2,:].flatten()))
 
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':use_latex})
     colorPalette = sns.color_palette("pastel", n_colors=1)
 
     plt.figure(figsize=(3,5))
@@ -307,7 +309,7 @@ def plot_evs_compare(evs_init, evs_opt, fs: int, nfft: int, lower_f_lim: float, 
     idx2 = int(nfft/fs * higher_f_lim)
     evs = mag2db(get_magnitude(torch.cat((evs_init.unsqueeze(-1), evs_opt.unsqueeze(-1)), dim=2)[idx1:idx2,:,:]))
 
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':use_latex})
     colorPalette = sns.color_palette("pastel", n_colors=2)
 
     plt.figure(figsize=(5,5))
@@ -315,7 +317,7 @@ def plot_evs_compare(evs_init, evs_opt, fs: int, nfft: int, lower_f_lim: float, 
     for i in range(evs.shape[2]):
         evst = evs[:,:,i].flatten()
         evst_max = torch.max(evst, 0)[0]
-        sns.boxplot(data=evst.numpy(), positions=[i], width=0.6, showfliers=False, patch_artist=True,
+        sns.boxplot(data=evst.cpu().numpy(), positions=[i], width=0.6, showfliers=False, patch_artist=True,
                     boxprops=dict(edgecolor='k', facecolor=colorPalette[i]), medianprops=dict(color="k", linewidth=1.5), whiskerprops=dict(color="k"), capprops=dict(color='k'))
         ax.scatter([i], [evst_max], marker="o", s=20, edgecolors='black', facecolors='black')
 
@@ -347,14 +349,14 @@ def plot_irs_compare(ir_1: torch.Tensor, ir_2: torch.Tensor, fs: int, label1='In
     time = torch.arange(ir_1.shape[0]) / fs
 
     plt.subplot(2, 1, 1)
-    plt.plot(time.numpy(), ir_1.detach().squeeze().numpy())
+    plt.plot(time.cpu().numpy(), ir_1.detach().squeeze().cpu().numpy())
     plt.title(label1)
     plt.grid(True)
 
     time = torch.arange(ir_2.shape[0]) / fs
 
     plt.subplot(2, 1, 2)
-    plt.plot(time.numpy(), ir_2.detach().squeeze().numpy())
+    plt.plot(time.cpu().numpy(), ir_2.detach().squeeze().cpu().numpy())
     plt.title(label2)
     plt.grid(True)
     fig.supxlabel('Time in seconds')
@@ -375,19 +377,19 @@ def plot_spectrograms_compare(ir_1: torch.Tensor, ir_2: torch.Tensor, fs: int, n
             - label2 (str, optional): Label for the second signal. Defaults to 'Optimized'.
             - title (str, optional): Title of the plot. Defaults to 'System Impulse Response Spectrograms'.
     """
-    Spec_init,f,t = mlab.specgram(ir_1.detach().squeeze().numpy(), NFFT=nfft, Fs=fs, noverlap=noverlap)
-    Spec_opt,_,_ = mlab.specgram(ir_2.detach().squeeze().numpy(), NFFT=nfft, Fs=fs, noverlap=noverlap)
+    Spec_init,f,t = mlab.specgram(ir_1.detach().squeeze().cpu().numpy(), NFFT=nfft, Fs=fs, noverlap=noverlap)
+    Spec_opt,_,_ = mlab.specgram(ir_2.detach().squeeze().cpu().numpy(), NFFT=nfft, Fs=fs, noverlap=noverlap)
 
     max_val = max(Spec_init.max(), Spec_opt.max())
-    Spec_init = torch.tensor(Spec_init)/max_val
-    Spec_opt = torch.tensor(Spec_opt)/max_val
+    Spec_init = torch.tensor(Spec_init).cpu()/max_val
+    Spec_opt = torch.tensor(Spec_opt).cpu()/max_val
     
 
-    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':True})
+    plt.rcParams.update({'font.family':'serif', 'font.size':20, 'font.weight':'heavy', 'text.usetex':use_latex})
     fig,axes = plt.subplots(2,1, sharex=False, sharey=True, figsize=(8,5), constrained_layout=True)
-    
+
     plt.subplot(2,1,1)
-    plt.pcolormesh(t, f, 10*torch.log10(Spec_init), cmap='magma', vmin=-100, vmax=0)
+    plt.pcolormesh(t, f, 10*torch.log10(Spec_init).cpu(), cmap='magma', vmin=-100, vmax=0)
     plt.xlim(0, ir_1.shape[0]/fs)
     plt.ylim(20, fs//2)
     plt.yscale('log')
@@ -395,7 +397,7 @@ def plot_spectrograms_compare(ir_1: torch.Tensor, ir_2: torch.Tensor, fs: int, n
     plt.grid(False)
 
     plt.subplot(2,1,2)
-    im = plt.pcolormesh(t, f, 10*torch.log10(Spec_opt), cmap='magma', vmin=-100, vmax=0)
+    im = plt.pcolormesh(t, f, 10*torch.log10(Spec_opt).cpu(), cmap='magma', vmin=-100, vmax=0)
     plt.xlim(0, ir_1.shape[0]/fs)
     plt.ylim(20, fs//2)
     plt.yscale('log')
@@ -407,7 +409,7 @@ def plot_spectrograms_compare(ir_1: torch.Tensor, ir_2: torch.Tensor, fs: int, n
 
     cbar = fig.colorbar(im, ax=axes[:], aspect=20)
     cbar.set_label('Magnitude in dB')
-    ticks = torch.arange(start=-100, end=1, step=20)
+    ticks = torch.arange(start=-100, end=1, step=20).cpu()
     cbar.ax.set_ylim(-100, 0)
     cbar.ax.set_yticks(ticks, ['-100','-80','-60','-40','-20','0'])
 

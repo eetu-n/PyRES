@@ -222,7 +222,7 @@ def reverb_time(rir: torch.Tensor, fs: int, decay_interval: str='T30') -> torch.
             - torch.Tensor: Reverberation time [s].
     """
 
-    rir = rir.squeeze().numpy()
+    rir = rir.squeeze().cpu().numpy()
     pf_rir = pf.Signal(data=rir, sampling_rate=fs, domain='time')
     edc = pr.energy_decay_curve_chu(data=pf_rir, time_shift=False)
     rt = pr.reverberation_time_energy_decay_curve(energy_decay_curve=edc, T=decay_interval)
