@@ -19,17 +19,31 @@ from PyRES.plots import plot_irs_compare
 
 torch.manual_seed(141122)
 
+class ThresholdedEDCLoss(nn.Module):
+    def __init__(self, threshold_db):
+        super().__init__()
+        self.threshold_linear = 10**(threshold_db / 20)
+    
+    def forward(self, output, target):
+        output_thresh = torch.where(torch.abs(output) < self.threshold_linear, 
+                                torch.zeros_like(output), output)
+        target_thresh = torch.where(torch.abs(target) < self.threshold_linear, 
+                                torch.zeros_like(target), target)
+        
+        return loss.EDCLoss()(output_thresh, target_thresh)
+
 if __name__ == '__main__':
     samplerate = 48000
     nfft = samplerate
     alias_decay_db = 0.0
     FIR_order = 2**18
     lr = 1e-3 
-    epochs = 20
+    epochs = 10
+    threshold_db = -40 # Adjust according to noise floor
 
     # Physical room
     dataset_directory = './dataRES'
-    room_name = 'MarsioExperimentalStudio3MicSetup2'
+    room_name = 'MarsioExperimentalStudio3_P1'
 
     train_dir = os.path.join('training_output', time.strftime("%Y%m%d-%H%M%S"))
     os.makedirs(train_dir, exist_ok=True)
@@ -107,9 +121,10 @@ if __name__ == '__main__':
         device = device
     )
     
+
     #criterion = loss.ScaledMSELoss()
     mss = mss_loss()
-    esr = loss.EDCLoss()
+    esr = ThresholdedEDCLoss(threshold_db=threshold_db)
 
     trainer.register_criterion(esr, 1.0)
 
