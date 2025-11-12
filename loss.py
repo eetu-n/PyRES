@@ -3,6 +3,22 @@ import torch.nn as nn
 import scipy.integrate as integral
 import numpy as np
 
+def apply_mask(input, target, mask_length=2000):
+    fade_length = 960  # 10 ms at 48 kHz
+    
+    fade_out = torch.hann_window(2 * fade_length, device=input.device)[fade_length:]
+    protected_region = torch.ones(mask_length - fade_length, device=input.device)
+    window = torch.cat([protected_region, fade_out]).unsqueeze(0).unsqueeze(-1)
+    window = window[:, :mask_length, :]
+
+    masked_input = input.clone()
+    masked_input[:, :mask_length, :] = (
+        target[:, :mask_length, :] * window + 
+        input[:, :mask_length, :] * (1 - window)
+    )
+    
+    return masked_input
+
 # MSE scaled up by 1000
 class ScaledMSELoss(nn.Module):
     def __init__(self, scale=1000):
