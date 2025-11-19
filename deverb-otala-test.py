@@ -7,13 +7,13 @@ import torch
 import torch.nn as nn
 #import loss
 
-import loss
+import loss_funcs
 
 from flamo import system, dsp
 from flamo.optimize.dataset import Dataset, load_dataset
 from flamo_trainer import Trainer
 
-import flamo.optimize.loss as loss
+import loss_funcs as loss
 from flamo_loss import edc_loss
 
 from PyRES.res import RES
@@ -26,7 +26,8 @@ from PyRES.loss_functions import BruteForceDirectPath, PunishHighValues
 
 
 if __name__ == '__main__':
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cpu"
+    print(f"Using device: {device}")
     torch.set_default_device(device)
     samplerate = 48000
     nfft = samplerate
@@ -88,6 +89,8 @@ if __name__ == '__main__':
     #print("Device count:", torch.cuda.device_count())
     if torch.cuda.is_available():
         print("Using GPU:", torch.cuda.get_device_name(0))
+    elif torch.backends.mps.is_available():
+        print("Using Apple Silicon GPU.")
     else:
         print("Using CPU.")
 
@@ -113,6 +116,9 @@ if __name__ == '__main__':
     print(f"Input Dataset Shape:", dataset_input.shape)
     print(f"Target Dataset Shape:", dataset_target.shape)
     
+    # input masking
+    # masked_input = loss.apply_mask(dataset_input, dataset_target, )
+
     dataset = Dataset(
         input = dataset_input,
         target = dataset_target,
@@ -135,11 +141,10 @@ if __name__ == '__main__':
     
 
     #criterion = loss.ScaledMSELoss()
-    mss = mss_loss()
-    esr = loss.ThresholdedEDCLoss(threshold_db=threshold_db)
 
-    mse = loss.mse_loss(nfft=nfft, device=device)
-    esr = ESRLoss()
+    esr = loss_funcs.ThresholdedEDCLoss(threshold_db=threshold_db)
+
+    """mse = loss.mse_loss(nfft=nfft, device=device)
 
     edc = edc_loss(
         sample_rate = samplerate,
@@ -153,7 +158,7 @@ if __name__ == '__main__':
 
     apl = loss.AveragePower(device=device)
 
-    bfd = BruteForceDirectPath()
+    bfd = BruteForceDirectPath()"""
     phv = PunishHighValues()
 
     trainer.register_criterion(esr, 2.0 * 1)
