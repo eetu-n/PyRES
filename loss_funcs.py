@@ -90,6 +90,7 @@ class ThresholdedEDCLoss(nn.Module):
                                 torch.zeros_like(target), target)
         
         return EDCLoss()(output_thresh, target_thresh)
+    
 class ESRLoss(nn.Module):
     """Error-to-Signal Ratio (ESR) loss.
     
