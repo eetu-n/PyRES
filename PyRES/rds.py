@@ -104,8 +104,7 @@ class RDS(object):
             device = device
         )
 
-
-        self.train_loader, self.valid_loader = load_dataset(dataset, batch_size=1, split=0.9, shuffle=False, device=device)
+        self.train_loader, self.valid_loader = load_dataset(dataset, batch_size=1, split=0.9, shuffle=False)
 
         self.trainer = Trainer(
             net=self.model,
@@ -122,7 +121,6 @@ class RDS(object):
         self.trainer.register_criterion(ESRLoss(), 2)
 
         pass
-
     
     def train(self):
         self.trainer.train(self.train_loader, self.valid_loader)
